@@ -423,7 +423,10 @@ pub async fn open_player_window(
     let window_label = format!("player-{}", uuid::Uuid::new_v4());
     
     // 设置播放器路由
-    let url = format!("/player?videoPath={}", urlencoding::encode(&video_path));
+    let url = format!("/player?videoPath={}&title={}",
+        urlencoding::encode(&video_path),
+        urlencoding::encode(&title)
+    );
     
     let window = tauri::WebviewWindowBuilder::new(
         &app,

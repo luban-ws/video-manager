@@ -24,7 +24,8 @@ pub async fn scan_and_generate_sidecars(dir_path: &Path, rebuild: bool, app: App
         return Err("目录不存在".to_string());
     }
 
-    let video_exts = ["mp4", "mkv", "mov", "avi", "webm", "m4v", "flv", "wmv", "mpg", "mpeg", "3gp", "ts", "m2ts"];
+    let video_exts = ["mp4", "mkv", "mov", "avi", "webm", "m4v", "flv", "wmv", "mpg", "mpeg", "3gp", "ts", "m2ts",
+                       "rmvb", "rm", "ogm", "ogv", "vob", "divx", "asf"];
     
     let mut video_files = Vec::new();
     for entry in WalkDir::new(dir_path).into_iter().filter_map(|e| e.ok()) {
@@ -32,6 +33,16 @@ pub async fn scan_and_generate_sidecars(dir_path: &Path, rebuild: bool, app: App
         if path.is_file() {
             if let Some(ext) = path.extension().and_then(|s| s.to_str()) {
                 if video_exts.contains(&ext.to_lowercase().as_str()) {
+                    // If this is NOT an mp4, check whether an mp4 companion exists.
+                    // If yes, the mp4 is the canonical entry — skip the non-mp4 so
+                    // we don't create duplicate sidecars.
+                    if ext.to_lowercase() != "mp4" {
+                        let mp4_companion = path.with_extension("mp4");
+                        if mp4_companion.exists() {
+                            // MP4 sibling exists; it will cover this file — skip.
+                            continue;
+                        }
+                    }
                     video_files.push(path.to_path_buf());
                 }
             }
