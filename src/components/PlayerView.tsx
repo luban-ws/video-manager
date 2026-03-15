@@ -30,8 +30,13 @@ export default function PlayerView() {
             responsive: true,
             fluid: true,
             sources: [{
-                src: convertFileSrc(videoPath),
-                type: "video/mp4" // Ideally extract this or use a generic type
+                src: (() => {
+                    const converted = convertFileSrc(videoPath);
+                    console.log("Original Path:", videoPath);
+                    console.log("Converted SRC:", converted);
+                    return converted;
+                })(),
+                type: "video/mp4"
             }]
         }, () => {
             console.log("Player is ready");

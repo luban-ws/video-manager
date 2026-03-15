@@ -20,6 +20,24 @@ pub struct FileInfo {
     pub file_type: FileType,
 }
 
+/// Smart Source Selection (RFC-0013): Detect if an MP4 version exists and prioritize it.
+pub fn resolve_smart_video_path(md_path: &Path, metadata: &mut VideoMetadata) {
+    if let Some(ref filename) = metadata.video_filename {
+        let video_p = Path::new(filename);
+        // Only try to swap if not already mp4
+        if video_p.extension().and_then(|e| e.to_str()).map(|s| s.to_lowercase()) != Some("mp4".to_string()) {
+            let mp4_filename = video_p.with_extension("mp4");
+            if let Some(parent) = md_path.parent() {
+                let mp4_path = parent.join(&mp4_filename);
+                if mp4_path.exists() {
+                    // Discovery: an mp4 version exists, use it transparently
+                    metadata.video_filename = Some(mp4_filename.to_string_lossy().to_string());
+                }
+            }
+        }
+    }
+}
+
 // 检测文件类型
 fn detect_file_type(path: &Path) -> FileType {
     if path.is_dir() {
@@ -54,7 +72,12 @@ pub fn read_markdown_file(file_path: &Path) -> Result<(VideoMetadata, String), S
     let content = fs::read_to_string(file_path)
         .map_err(|e| format!("读取文件失败: {e}"))?;
 
-    parse_markdown(&content)
+    let (mut metadata, body) = parse_markdown(&content)?;
+    
+    // Apply Smart Source Selection
+    resolve_smart_video_path(file_path, &mut metadata);
+    
+    Ok((metadata, body))
 }
 
 // 写入 Markdown 文件
@@ -138,22 +161,7 @@ pub fn list_markdown_files(dir_path: &Path) -> Result<Vec<FileInfo>, String> {
         if file_type == FileType::Markdown {
             // 只处理 Markdown 文件，尝试解析 frontmatter
             match read_markdown_file(path) {
-                Ok((mut metadata, _)) => {
-                    // Smart Source Selection (RFC-0013): 优先使用同名的 .mp4 文件
-                    if let Some(ref filename) = metadata.video_filename {
-                        let video_p = Path::new(filename);
-                        if video_p.extension().and_then(|e| e.to_str()).map(|s| s.to_lowercase()) != Some("mp4".to_string()) {
-                            let mp4_filename = video_p.with_extension("mp4");
-                            if let Some(parent) = path.parent() {
-                                let mp4_path = parent.join(&mp4_filename);
-                                if mp4_path.exists() {
-                                    // 发现同名 mp4，透明优先使用
-                                    metadata.video_filename = Some(mp4_filename.to_string_lossy().to_string());
-                                }
-                            }
-                        }
-                    }
-
+                Ok((metadata, _)) => {
                     files.push(FileInfo {
                         path: path.to_string_lossy().to_string(),
                         name: path.file_name()

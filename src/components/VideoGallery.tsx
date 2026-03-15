@@ -166,8 +166,10 @@ export default function VideoGallery({ libraryPath, onSelectVideo, onScanRequest
                      <button 
                         onClick={(e) => {
                             e.stopPropagation();
+                            // Resolve relative to markdown file directory
+                            const mdDir = video.path.substring(0, video.path.lastIndexOf('/'));
                             invoke("open_player_window", { 
-                                videoPath: `${libraryPath}/${video.metadata.video_filename}`,
+                                videoPath: `${mdDir}/${video.metadata.video_filename}`,
                                 title: video.metadata.title || video.name
                             });
                         }}
@@ -182,8 +184,10 @@ export default function VideoGallery({ libraryPath, onSelectVideo, onScanRequest
                         <button 
                             onClick={(e) => {
                                 e.stopPropagation();
+                                // Resolve relative to markdown file directory
+                                const mdDir = video.path.substring(0, video.path.lastIndexOf('/'));
                                 invoke("upgrade_video_to_mp4", { 
-                                    videoPath: `${libraryPath}/${video.metadata.video_filename}`,
+                                    videoPath: `${mdDir}/${video.metadata.video_filename}`,
                                     markdownPath: video.path,
                                     title: video.metadata.title || video.name
                                 });

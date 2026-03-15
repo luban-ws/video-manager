@@ -24,6 +24,7 @@ fn main() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_asset::init())
         .invoke_handler(tauri::generate_handler![
             commands::scan_library,
             commands::extract_video_and_create_file,
