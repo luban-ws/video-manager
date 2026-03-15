@@ -138,7 +138,22 @@ pub fn list_markdown_files(dir_path: &Path) -> Result<Vec<FileInfo>, String> {
         if file_type == FileType::Markdown {
             // 只处理 Markdown 文件，尝试解析 frontmatter
             match read_markdown_file(path) {
-                Ok((metadata, _)) => {
+                Ok((mut metadata, _)) => {
+                    // Smart Source Selection (RFC-0013): 优先使用同名的 .mp4 文件
+                    if let Some(ref filename) = metadata.video_filename {
+                        let video_p = Path::new(filename);
+                        if video_p.extension().and_then(|e| e.to_str()).map(|s| s.to_lowercase()) != Some("mp4".to_string()) {
+                            let mp4_filename = video_p.with_extension("mp4");
+                            if let Some(parent) = path.parent() {
+                                let mp4_path = parent.join(&mp4_filename);
+                                if mp4_path.exists() {
+                                    // 发现同名 mp4，透明优先使用
+                                    metadata.video_filename = Some(mp4_filename.to_string_lossy().to_string());
+                                }
+                            }
+                        }
+                    }
+
                     files.push(FileInfo {
                         path: path.to_string_lossy().to_string(),
                         name: path.file_name()
@@ -173,19 +188,8 @@ pub fn list_markdown_files(dir_path: &Path) -> Result<Vec<FileInfo>, String> {
                         .and_then(|n| n.to_str())
                         .unwrap_or("")
                         .to_string()),
-                    url: String::new(),
                     platform: "本地视频".to_string(),
-                    thumbnail: None,
-                    duration: None,
-                    width: None,
-                    height: None,
-                    fps: None,
-                    codec: None,
-                    file_size: None,
-                    tags: Vec::new(),
-                    description: None,
-                    created_at: String::new(),
-                    updated_at: String::new(),
+                    ..Default::default()
                 },
                 is_directory: false,
                 file_type: FileType::Video,

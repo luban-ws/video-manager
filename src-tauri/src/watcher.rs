@@ -81,7 +81,7 @@ pub async fn watch_directory(
     watchers.insert(dir_path.clone(), watcher);
 
     // Spawn an async task to process events
-    tokio::spawn(async move {
+    tauri::async_runtime::spawn(async move {
         while let Some(event) = rx.recv().await {
             handle_event(event, &app).await;
         }
@@ -118,7 +118,7 @@ async fn handle_event(event: Event, app: &AppHandle) {
                     sleep(Duration::from_secs(3)).await;
 
                     if path.exists() {
-                        let result = process_video_file(&path);
+                        let result = process_video_file(&path, false);
                         if let Ok(true) = result {
                             // Successfully grabbed a new sidecar, alert the UI
                             println!("Tauri Watcher: Generated sidecar for {path:?}");

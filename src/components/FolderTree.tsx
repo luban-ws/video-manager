@@ -75,8 +75,8 @@ export default function FolderTree({ baseDir, onFileSelect, selectedPath }: Fold
           <div
             className={`flex items-center gap-2 px-2 py-1.5 cursor-pointer transition-colors ${
               isSelected 
-                ? "bg-blue-50 border-l-2 border-blue-500" 
-                : "hover:bg-gray-50"
+                ? "bg-[var(--base03)] border-l-2 border-[var(--accent)]" 
+                : "hover:bg-[var(--base03)]/50"
             }`}
             style={{ paddingLeft: `${level * 20 + 12}px` }}
             onClick={() => {
@@ -88,7 +88,7 @@ export default function FolderTree({ baseDir, onFileSelect, selectedPath }: Fold
             <span className="text-base flex-shrink-0">
               {isExpanded ? "📂" : "📁"}
             </span>
-            <span className={`text-sm ${isSelected ? "font-medium text-gray-900" : "text-gray-700"}`}>
+            <span className={`text-sm ${isSelected ? "font-medium text-[var(--text-primary)]" : "text-[var(--text-secondary)]"}`}>
               {file.name}
             </span>
           </div>
@@ -120,15 +120,15 @@ export default function FolderTree({ baseDir, onFileSelect, selectedPath }: Fold
         key={file.path}
         className={`flex items-center gap-2 px-2 py-1.5 cursor-pointer transition-colors ${
           isSelected 
-            ? "bg-blue-50 border-l-2 border-blue-500" 
-            : "hover:bg-gray-50"
+            ? "bg-[var(--base03)] border-l-2 border-[var(--accent)]" 
+            : "hover:bg-[var(--base03)]/50"
         }`}
         style={{ paddingLeft: `${level * 20 + 12}px` }}
         onClick={() => onFileSelect(file.path, file.file_type)}
       >
         <span className="text-base flex-shrink-0">{getFileIcon()}</span>
         <div className="flex-1 min-w-0">
-          <div className={`text-sm truncate ${isSelected ? "font-medium text-gray-900" : "text-gray-700"}`}>
+          <div className={`text-sm truncate ${isSelected ? "font-medium text-[var(--text-primary)]" : "text-[var(--text-secondary)]"}`}>
             {file.metadata.title || file.name}
           </div>
           {file.metadata.tags.length > 0 && (
@@ -136,7 +136,7 @@ export default function FolderTree({ baseDir, onFileSelect, selectedPath }: Fold
               {file.metadata.tags.slice(0, 2).map((tag, i) => (
                 <span
                   key={i}
-                  className="px-1.5 py-0.5 bg-blue-50 text-blue-600 text-xs rounded"
+                  className="px-1.5 py-0.5 bg-[var(--base03)] text-[var(--accent)] text-xs rounded border border-[var(--accent)]/30"
                 >
                   {tag}
                 </span>
@@ -150,7 +150,7 @@ export default function FolderTree({ baseDir, onFileSelect, selectedPath }: Fold
 
   if (loading) {
     return (
-      <div className="p-4 text-center text-gray-500">
+      <div className="p-4 text-center text-[var(--text-secondary)] bg-[var(--bg-primary)] h-full">
         <p>加载中...</p>
       </div>
     );
@@ -164,13 +164,13 @@ export default function FolderTree({ baseDir, onFileSelect, selectedPath }: Fold
   });
 
   return (
-    <div className="h-full overflow-auto bg-gray-50">
-      <div className="px-3 py-2 border-b bg-white">
-        <h3 className="font-semibold text-sm text-gray-700">文件</h3>
+    <div className="h-full overflow-auto bg-[var(--bg-primary)]">
+      <div className="px-3 py-2 border-b border-[var(--border)] bg-[var(--bg-secondary)]">
+        <h3 className="font-semibold text-sm text-[var(--text-secondary)]">文件</h3>
       </div>
       <div className="py-1">
         {rootFiles.length === 0 ? (
-          <div className="p-4 text-center text-gray-400 text-sm">
+          <div className="p-4 text-center text-[var(--text-secondary)] opacity-50 text-sm italic">
             暂无文件
           </div>
         ) : (

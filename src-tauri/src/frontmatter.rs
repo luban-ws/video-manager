@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct VideoMetadata {
     pub title: String,
     #[serde(default)]
@@ -39,20 +39,9 @@ pub fn parse_markdown(content: &str) -> Result<(VideoMetadata, String), String> 
         let metadata = VideoMetadata {
             title: "未命名文档".to_string(),
             source_type: "markdown".to_string(),
-            video_filename: None,
-            url: String::new(),
-            platform: String::new(),
-            thumbnail: None,
-            duration: None,
-            width: None,
-            height: None,
-            fps: None,
-            codec: None,
-            file_size: None,
-            tags: Vec::new(),
-            description: None,
             created_at: now.clone(),
             updated_at: now,
+            ..Default::default()
         };
         return Ok((metadata, content.to_string()));
     }

@@ -5,6 +5,8 @@ import LibrarySidebar, { ScanProgress } from "./components/LibrarySidebar";
 import VideoGallery from "./components/VideoGallery";
 import MarkdownEditor from "./components/MarkdownEditor";
 import ResizableSplitter from "./components/ResizableSplitter";
+import TranscodeQueueUI from "./components/TranscodeQueueUI";
+import PlayerView from "./components/PlayerView";
 
 const STORAGE_KEY = "video-manager-libraries";
 const SELECTED_LIB_KEY = "video-manager-selected-lib";
@@ -29,6 +31,7 @@ function App() {
   const [selectedFileType, setSelectedFileType] = useState<"markdown" | "video" | "directory" | "other">("markdown");
 
   const [scanProgress, setScanProgress] = useState<ScanProgress | null>(null);
+  const [rebuildMetadata, setRebuildMetadata] = useState(false);
 
   useEffect(() => {
     let unlisten: UnlistenFn;
@@ -90,7 +93,10 @@ function App() {
     if (!path) return;
     try {
       setScanProgress({ total_videos: 0, processed: 0, current_file: "准备扫描..." });
-      await invoke("scan_library", { libraryPath: path });
+      await invoke("scan_library", { libraryPath: path, rebuild: rebuildMetadata });
+      // After scan, if we added/rebuilt files, the watcher or a manual refresh should handle it.
+      // But for better UX, let's signal a refresh.
+      setRebuildMetadata(false); // Reset after scan
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       alert("扫描失败: " + errorMessage);
@@ -98,9 +104,13 @@ function App() {
     }
   };
 
+  if (window.location.pathname === "/player") {
+    return <PlayerView />;
+  }
+
   return (
-    <div className="h-screen flex flex-col bg-white overflow-hidden text-gray-900 font-sans">
-      <div className="flex-1 overflow-hidden">
+    <div className="h-screen flex flex-col bg-[var(--bg-primary)] overflow-hidden text-[var(--text-primary)] font-sans solarized-dark">
+      <div className="flex-1 overflow-hidden relative">
         <ResizableSplitter
           left={
             <LibrarySidebar
@@ -111,10 +121,12 @@ function App() {
               onRemoveLibrary={handleRemoveLibrary}
               onScanRequest={handleScanLibrary}
               scanProgress={scanProgress}
+              rebuildMetadata={rebuildMetadata}
+              setRebuildMetadata={setRebuildMetadata}
             />
           }
           right={
-            <div className="h-full w-full bg-white relative">
+            <div className="h-full w-full bg-[var(--bg-primary)] relative">
               {selectedFilePath && selectedLibrary ? (
                 <MarkdownEditor
                   filePath={selectedFilePath}
@@ -137,6 +149,7 @@ function App() {
           maxLeftWidth={400}
           storageKey="video-manager-main-splitter"
         />
+        <TranscodeQueueUI />
       </div>
     </div>
   );

@@ -125,8 +125,8 @@ pub fn extract_metadata_and_thumbnail(video_path: &Path) -> Result<LocalVideoMet
     let width = decoder.width();
     let height = decoder.height();
 
-    // seek to 2 seconds or 10%
-    let seek_target_secs = (duration_secs * 0.1).clamp(0.0, 2.0);
+    // seek to 50% to avoid black frames at the beginning
+    let seek_target_secs = duration_secs * 0.5;
     let seek_pos = (seek_target_secs / f64::from(time_base)) as i64;
     let _ = ictx.seek(seek_pos, ..seek_pos);
 
@@ -336,6 +336,78 @@ pub fn decode_video_frames(
         // 发送完成信号
         let _ = frame_sender.send(Err("解码完成".to_string()));
     });
+
+    Ok(())
+}
+
+/// 将视频转换为浏览器友好的 MP4 (H.264/AAC)，并报告进度
+pub fn transcode_to_mp4<F>(input_path: &Path, output_path: &Path, mut progress_callback: F) -> Result<(), String> 
+where F: FnMut(f64) {
+    // 1. 获取视频总时长，用于计算进度
+    let info = get_video_info(&input_path.to_string_lossy())?;
+    let total_duration = info.duration;
+
+    // 2. 检查 ffmpeg 是否可用
+    let ffmpeg_check = std::process::Command::new("ffmpeg").arg("-version").output();
+    if ffmpeg_check.is_err() {
+        return Err("ffmpeg 未安装。请先安装 ffmpeg: https://ffmpeg.org/".to_string());
+    }
+
+    // 3. 执行转换并解析 stderr 获取进度
+    use std::io::{BufRead, BufReader};
+    use std::process::Stdio;
+
+    let mut child = std::process::Command::new("ffmpeg")
+        .args([
+            "-i",
+            input_path.to_str().ok_or("无效的输入路径")?,
+            "-c:v",
+            "libx264",
+            "-preset",
+            "medium",
+            "-crf",
+            "23",
+            "-c:a",
+            "aac",
+            "-b:a",
+            "128k",
+            "-movflags",
+            "+faststart",
+            "-progress",
+            "pipe:1", // 将进度信息输出到 stdout
+            "-y",
+            output_path.to_str().ok_or("无效的输出路径")?,
+        ])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null()) // Discard stderr to prevent stalling if pipe buffer fills up
+        .spawn()
+        .map_err(|e| format!("启动 ffmpeg 失败: {e}"))?;
+
+    let stdout = child.stdout.take().ok_or("无法获取 stdout")?;
+    let reader = BufReader::new(stdout);
+
+    for line in reader.lines() {
+        if let Ok(line) = line {
+            // ffmpeg -progress pipe:1 输出格式如:
+            // out_time_ms=23000000
+            // ...
+            // progress=continue
+            if line.starts_with("out_time_ms=") {
+                if let Ok(ms) = line[12..].parse::<i64>() {
+                    let current_secs = ms as f64 / 1_000_000.0;
+                    if total_duration > 0.0 {
+                        let progress = (current_secs / total_duration * 100.0).min(99.9);
+                        progress_callback(progress);
+                    }
+                }
+            }
+        }
+    }
+
+    let status = child.wait().map_err(|e| format!("等待 ffmpeg 完成失败: {e}"))?;
+    if !status.success() {
+        return Err("ffmpeg 执行失败".to_string());
+    }
 
     Ok(())
 }

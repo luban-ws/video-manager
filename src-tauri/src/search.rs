@@ -152,19 +152,9 @@ mod tests {
             title: "Unique Video Title".to_string(),
             source_type: "local".to_string(),
             video_filename: Some("test.mp4".to_string()),
-            url: "".to_string(),
-            platform: "local".to_string(),
-            thumbnail: None,
-            duration: None,
-            width: None,
-            height: None,
-            fps: None,
-            codec: None,
-            file_size: None,
             tags: vec!["tag1".to_string()],
             description: Some("Description here".to_string()),
-            created_at: "".to_string(),
-            updated_at: "".to_string(),
+            ..Default::default()
         };
         write_markdown_file(&dir.path().join("test.md"), &meta, "## Content").unwrap();
 
@@ -180,19 +170,8 @@ mod tests {
             title: "Video 1".to_string(),
             source_type: "local".to_string(),
             video_filename: Some("v1.mp4".to_string()),
-            url: "".to_string(),
-            platform: "local".to_string(),
-            thumbnail: None,
-            duration: None,
-            width: None,
-            height: None,
-            fps: None,
-            codec: None,
-            file_size: None,
             tags: vec!["rust".to_string(), "tauri".to_string()],
-            description: None,
-            created_at: "".to_string(),
-            updated_at: "".to_string(),
+            ..Default::default()
         };
         write_markdown_file(&dir.path().join("v1.md"), &meta, "").unwrap();
 

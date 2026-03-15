@@ -19,7 +19,7 @@ pub struct ScanReport {
     pub newly_added: usize,
 }
 
-pub async fn scan_and_generate_sidecars(dir_path: &Path, app: AppHandle) -> Result<ScanReport, String> {
+pub async fn scan_and_generate_sidecars(dir_path: &Path, rebuild: bool, app: AppHandle) -> Result<ScanReport, String> {
     if !dir_path.exists() {
         return Err("目录不存在".to_string());
     }
@@ -49,7 +49,7 @@ pub async fn scan_and_generate_sidecars(dir_path: &Path, app: AppHandle) -> Resu
             current_file: file_name.clone(),
         });
 
-        if let Ok(true) = process_video_file(v_path) {
+        if let Ok(true) = process_video_file(v_path, rebuild) {
             newly_added += 1;
         }
     }
@@ -63,10 +63,10 @@ pub async fn scan_and_generate_sidecars(dir_path: &Path, app: AppHandle) -> Resu
     Ok(ScanReport { total, newly_added })
 }
 
-pub fn process_video_file(v_path: &Path) -> Result<bool, String> {
+pub fn process_video_file(v_path: &Path, rebuild: bool) -> Result<bool, String> {
     let md_path = v_path.with_extension("md");
-    if md_path.exists() {
-        return Ok(false); // Already exists
+    if md_path.exists() && !rebuild {
+        return Ok(false); // Already exists and not rebuilding
     }
 
     if let Ok(meta) = extract_metadata_and_thumbnail(v_path) {
@@ -124,7 +124,7 @@ mod tests {
         let mut md_file = File::create(&md_path).unwrap();
         md_file.write_all(b"---\ntitle: test\n---").unwrap();
         
-        let result = process_video_file(&video_path);
+        let result = process_video_file(&video_path, false);
         
         assert!(result.is_ok());
         assert!(!result.unwrap(), "Should skip if sidecar exists");
@@ -135,7 +135,7 @@ mod tests {
         let dir = tempdir().unwrap();
         let missing_video = dir.path().join("does_not_exist.mp4");
         
-        let result = process_video_file(&missing_video);
+        let result = process_video_file(&missing_video, false);
         
         // Because extract_metadata_and_thumbnail will fail on a missing file,
         // it should gracefully return Ok(false) per the implementation.

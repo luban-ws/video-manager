@@ -10,9 +10,16 @@ mod git;
 pub mod native_video;
 pub mod scanner;
 pub mod watcher;
+pub mod transcoder;
+
+use tauri::Manager;
 
 fn main() {
     tauri::Builder::default()
+        .setup(|app| {
+            app.manage(transcoder::TranscoderManager::new(app.handle().clone()));
+            Ok(())
+        })
         .manage(watcher::WatcherState::new())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_fs::init())
@@ -37,6 +44,9 @@ fn main() {
             commands::git_history,
             commands::play_video_with_vlc,
             commands::check_vlc_available,
+            commands::upgrade_video_to_mp4,
+            commands::open_player_window,
+            commands::get_transcode_jobs,
             watcher::watch_directory,
             watcher::unwatch_directory,
         ])

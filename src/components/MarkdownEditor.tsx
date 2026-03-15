@@ -8,14 +8,21 @@ import "@videojs/themes/dist/sea/index.css";
 
 interface VideoMetadata {
     title: string;
-    url: string;
-    platform: string;
+    url?: string;
+    platform?: string;
     thumbnail: string | null;
     duration: number | null;
     tags: string[];
     description: string | null;
     created_at: string;
     updated_at: string;
+    source_type?: string;
+    video_filename?: string;
+    width?: number;
+    height?: number;
+    fps?: number;
+    codec?: string;
+    file_size?: number;
 }
 
 interface MarkdownEditorProps {
@@ -102,7 +109,7 @@ export default function MarkdownEditor({
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
     const videoRef = useRef<HTMLVideoElement | null>(null);
-    const playerRef = useRef<ReturnType<typeof videojs> | null>(null);
+    const playerRef = useRef<any>(null);
     const editorContainerRef = useRef<HTMLDivElement | null>(null);
 
     const formatTimestamp = (seconds: number) => {
@@ -203,12 +210,15 @@ export default function MarkdownEditor({
 
     // 初始化 video.js 播放器（仅用于视频文件）
     useEffect(() => {
-        if (fileType === "video" && filePath && videoRef.current) {
+        if (fileType === "video" && filePath && videoRef.current && metadata?.video_filename) {
             // 如果已有播放器实例，先清理
             if (playerRef.current) {
                 playerRef.current.dispose();
                 playerRef.current = null;
             }
+
+            // 获取视频文件的绝对路径 (基于 MD 文件夹 + video_filename)
+            const videoPath = filePath.substring(0, filePath.lastIndexOf("/") + 1) + metadata.video_filename;
 
             // 创建新的播放器实例
             const player = videojs(videoRef.current, {
@@ -221,6 +231,12 @@ export default function MarkdownEditor({
             });
 
             playerRef.current = player;
+
+            // 更新播放器源
+            player.src({
+                src: convertFileSrc(videoPath),
+                type: getVideoMimeType(videoPath)
+            });
 
             return () => {
                 if (playerRef.current) {
@@ -235,7 +251,7 @@ export default function MarkdownEditor({
                 playerRef.current = null;
             }
         }
-    }, [fileType, filePath]);
+    }, [fileType, filePath, metadata?.video_filename]);
 
     // 处理图片粘贴
     useEffect(() => {
@@ -353,20 +369,20 @@ export default function MarkdownEditor({
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center h-full">
-                <p className="text-gray-500">加载中...</p>
+            <div className="flex items-center justify-center h-full bg-[var(--bg-primary)]">
+                <p className="text-[var(--text-secondary)]">加载中...</p>
             </div>
         );
     }
 
     if (!filePath) {
         return (
-            <div className="flex items-center justify-center h-full bg-white">
+            <div className="flex items-center justify-center h-full bg-[var(--bg-primary)]">
                 <div className="text-center">
-                    <p className="text-gray-400 text-base mb-1">
+                    <p className="text-[var(--text-secondary)] text-base mb-1">
                         选择一个文件开始
                     </p>
-                    <p className="text-gray-300 text-sm">
+                    <p className="text-[var(--base01)] text-sm">
                         或粘贴视频链接创建新文档
                     </p>
                 </div>
@@ -381,23 +397,23 @@ export default function MarkdownEditor({
         const fileExt = filePath?.split(".").pop()?.toLowerCase() || "";
 
         return (
-            <div className="h-full flex flex-col bg-white">
+            <div className="h-full flex flex-col bg-[var(--bg-primary)]">
                 {/* 工具栏 */}
-                <div className="border-b bg-white px-6 py-3 flex items-center justify-between">
+                <div className="border-b border-[var(--border)] bg-[var(--bg-secondary)] px-6 py-3 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         {onBack && (
                             <button
                                 onClick={onBack}
-                                className="p-1 mr-2 text-gray-500 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 rounded transition-colors"
+                                className="p-1 mr-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] bg-[var(--base03)] hover:bg-[var(--base02)] rounded transition-colors"
                             >
                                 ← 返回
                             </button>
                         )}
-                        <h2 className="font-semibold text-base text-gray-900">
+                        <h2 className="font-semibold text-base text-[var(--text-primary)]">
                             {fileName}
                         </h2>
                         {!formatSupported && (
-                            <span className="text-xs text-orange-600 bg-orange-50 px-2 py-1 rounded">
+                            <span className="text-xs text-[var(--orange)] bg-[var(--base03)] border border-[var(--orange)]/30 px-2 py-1 rounded">
                                 ⚠️ 此格式可能无法在浏览器中播放
                             </span>
                         )}
@@ -413,21 +429,16 @@ export default function MarkdownEditor({
                                     ref={videoRef}
                                     className="video-js vjs-theme-sea vjs-big-play-centered"
                                     style={{ width: "100%", height: "100%" }}
-                                >
-                                    <source src={convertFileSrc(filePath!)} type={getVideoMimeType(filePath!)} />
-                                    <p className="vjs-no-js">
-                                        要查看此视频，请启用 JavaScript，并考虑升级到支持 HTML5 视频的 Web 浏览器。
-                                    </p>
-                                </video>
+                                />
                             </div>
                         </div>
                     ) : (
                         <div className="text-center text-white p-8">
                             <p className="text-lg mb-2">无法在浏览器中播放此格式</p>
-                            <p className="text-sm text-gray-400 mb-4">
+                            <p className="text-sm text-[var(--text-secondary)] mb-4">
                                 格式: {fileExt.toUpperCase()} 需要外部播放器支持
                             </p>
-                            <p className="text-sm text-gray-500">
+                            <p className="text-sm text-[var(--base01)]">
                                 建议使用 VLC 或其他支持该格式的播放器打开此文件
                             </p>
                         </div>
@@ -438,25 +449,25 @@ export default function MarkdownEditor({
     }
 
     return (
-        <div className="h-full flex flex-col bg-white">
+        <div className="h-full flex flex-col bg-[var(--bg-primary)]">
             {/* 工具栏 - Notion 风格 */}
-            <div className="border-b bg-white px-6 py-3 flex items-center justify-between">
+            <div className="border-b border-[var(--border)] bg-[var(--bg-secondary)] px-6 py-3 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                     {onBack && (
                         <button
                             onClick={onBack}
-                            className="p-1 mr-2 text-gray-500 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 rounded transition-colors"
+                            className="p-1 mr-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] bg-[var(--base03)] hover:bg-[var(--base02)] rounded transition-colors"
                         >
                             ← 返回
                         </button>
                     )}
                     {metadata && (
                         <>
-                            <h2 className="font-semibold text-base text-gray-900">
+                            <h2 className="font-semibold text-base text-[var(--text-primary)]">
                                 {metadata.title}
                             </h2>
                             {metadata.platform && (
-                                <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
+                                <span className="text-xs text-[var(--text-secondary)] bg-[var(--base03)] px-2 py-0.5 rounded border border-[var(--border)]">
                                     {metadata.platform}
                                 </span>
                             )}
@@ -465,7 +476,7 @@ export default function MarkdownEditor({
                                     {metadata.tags.map((tag, i) => (
                                         <span
                                             key={i}
-                                            className="px-2 py-0.5 bg-blue-50 text-blue-600 text-xs rounded"
+                                            className="px-2 py-0.5 bg-[var(--base03)] text-[var(--accent)] text-xs rounded border border-[var(--accent)]/30"
                                         >
                                             {tag}
                                         </span>
@@ -476,10 +487,50 @@ export default function MarkdownEditor({
                     )}
                 </div>
                 <div className="flex items-center gap-2">
+                    {metadata && metadata.video_filename && (
+                        <>
+                            <button
+                                onClick={() => {
+                                    const videoPath = filePath?.substring(0, filePath.lastIndexOf("/") + 1) + metadata.video_filename;
+                                    invoke("open_player_window", { 
+                                        videoPath,
+                                        title: metadata.title 
+                                    });
+                                }}
+                                className="px-3 py-1.5 text-sm bg-[var(--bg-secondary)] text-[var(--text-primary)] border border-[var(--border)] rounded hover:bg-[var(--base03)] transition-colors shadow-sm flex items-center gap-2"
+                                title="在独立窗口播放"
+                            >
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                </svg>
+                                <span>分离播放器</span>
+                            </button>
+
+                            {metadata.codec && !metadata.codec.includes("h264") && (
+                                <button
+                                    onClick={() => {
+                                        const videoPath = filePath?.substring(0, filePath.lastIndexOf("/") + 1) + metadata.video_filename;
+                                        invoke("upgrade_video_to_mp4", { 
+                                            videoPath,
+                                            markdownPath: filePath,
+                                            title: metadata.title
+                                        });
+                                    }}
+                                    className="px-3 py-1.5 text-sm bg-orange-600/20 text-orange-400 border border-orange-500/30 rounded hover:bg-orange-600/30 transition-colors shadow-sm flex items-center gap-2"
+                                    title="升级编码以获得更好的兼容性"
+                                >
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                    </svg>
+                                    <span>升级到 MP4</span>
+                                </button>
+                            )}
+                        </>
+                    )}
                     <button
                         onClick={handleSave}
                         disabled={saving}
-                        className="px-3 py-1.5 text-sm bg-gray-900 text-white rounded hover:bg-gray-800 disabled:opacity-50 transition-colors"
+                        className="px-3 py-1.5 text-sm bg-[var(--accent)] text-white rounded hover:opacity-90 disabled:opacity-50 transition-colors shadow-sm"
                     >
                         {saving ? "保存中..." : "保存"}
                     </button>
@@ -487,7 +538,7 @@ export default function MarkdownEditor({
             </div>
 
             {/* 编辑器 */}
-            <div className="flex-1 overflow-auto" data-color-mode="light" ref={editorContainerRef}>
+            <div className="flex-1 overflow-auto bg-[var(--bg-primary)]" data-color-mode="dark" ref={editorContainerRef}>
                 <MDEditor
                     value={content}
                     onChange={(value) => setContent(value || "")}

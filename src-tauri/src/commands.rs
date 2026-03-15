@@ -1,11 +1,7 @@
-use crate::filesystem;
-use crate::frontmatter::{VideoMetadata, update_timestamp};
-use crate::video;
-use crate::search;
-use crate::git;
+use crate::{filesystem, frontmatter::{VideoMetadata, update_timestamp}, video, search, git, transcoder};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use tauri::AppHandle;
+use tauri::{AppHandle, State};
 use chrono::Utc;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -28,10 +24,11 @@ pub struct FileInfo {
 #[tauri::command]
 pub async fn scan_library(
     library_path: String,
+    rebuild: bool,
     app: tauri::AppHandle,
 ) -> Result<crate::scanner::ScanReport, String> {
     let dir = std::path::Path::new(&library_path);
-    crate::scanner::scan_and_generate_sidecars(dir, app).await
+    crate::scanner::scan_and_generate_sidecars(dir, rebuild, app).await
 }
 
 // 提取视频信息并创建 Markdown 文件
@@ -49,20 +46,14 @@ pub async fn extract_video_and_create_file(
     let metadata = VideoMetadata {
         title: video_info.title.clone(),
         source_type: "remote".to_string(),
-        video_filename: None,
         url: video_info.url.clone(),
         platform: video_info.platform.clone(),
         thumbnail: video_info.thumbnail.clone(),
         duration: video_info.duration,
-        width: None,
-        height: None,
-        fps: None,
-        codec: None,
-        file_size: None,
-        tags: Vec::new(),
         description: video_info.description.clone(),
         created_at: now.clone(),
         updated_at: now,
+        ..Default::default()
     };
 
     // 生成初始 Markdown 内容
@@ -401,4 +392,52 @@ fn format_duration(seconds: Option<i64>) -> String {
         }
         None => "未知".to_string(),
     }
+}
+
+// 永久升级视频为 MP4 (添加到队列)
+#[tauri::command]
+pub async fn upgrade_video_to_mp4(
+    video_path: String,
+    markdown_path: String,
+    title: String,
+    transcoder: State<'_, transcoder::TranscoderManager>,
+) -> Result<String, String> {
+    Ok(transcoder.add_job(video_path, markdown_path, title))
+}
+
+// 获取当前转码任务列表
+#[tauri::command]
+pub async fn get_transcode_jobs(
+    transcoder: State<'_, transcoder::TranscoderManager>,
+) -> Result<Vec<transcoder::TranscodeJob>, String> {
+    Ok(transcoder.get_jobs())
+}
+
+// 打开独立播放器窗口
+#[tauri::command]
+pub async fn open_player_window(
+    app: tauri::AppHandle,
+    video_path: String,
+    title: String,
+) -> Result<(), String> {
+    let window_label = format!("player-{}", uuid::Uuid::new_v4());
+    
+    // 设置播放器路由
+    let url = format!("/player?videoPath={}", urlencoding::encode(&video_path));
+    
+    let window = tauri::WebviewWindowBuilder::new(
+        &app,
+        window_label,
+        tauri::WebviewUrl::App(url.into())
+    )
+    .title(format!("播放 - {}", title))
+    .inner_size(1280.0, 720.0)
+    .min_inner_size(640.0, 360.0)
+    .resizable(true)
+    .build()
+    .map_err(|e| format!("无法创建播放器窗口: {e}"))?;
+
+    let _ = window.set_focus();
+
+    Ok(())
 }

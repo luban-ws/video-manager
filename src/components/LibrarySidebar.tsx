@@ -17,6 +17,8 @@ interface Props {
   onRemoveLibrary: (path: string) => void;
   onScanRequest: (path: string) => void;
   scanProgress: ScanProgress | null;
+  rebuildMetadata: boolean;
+  setRebuildMetadata: (val: boolean) => void;
 }
 
 export default function LibrarySidebar({
@@ -26,7 +28,9 @@ export default function LibrarySidebar({
   onAddLibrary,
   onRemoveLibrary,
   onScanRequest,
-  scanProgress
+  scanProgress,
+  rebuildMetadata,
+  setRebuildMetadata
 }: Props) {
   // No local scanProgress state needed anymore
 
@@ -60,12 +64,12 @@ export default function LibrarySidebar({
   };
 
   return (
-    <div className="flex flex-col h-full bg-gray-50/50 border-r border-gray-200 min-w-[200px] max-w-sm overflow-hidden">
-      <div className="p-4 flex items-center justify-between border-b border-gray-200">
-        <h2 className="text-sm font-semibold text-gray-700">我的资料库</h2>
+    <div className="flex flex-col h-full bg-[var(--bg-secondary)] border-r border-[var(--border)] min-w-[200px] max-w-sm overflow-hidden text-[var(--text-primary)]">
+      <div className="p-4 flex items-center justify-between border-b border-[var(--border)]">
+        <h2 className="text-sm font-semibold text-[var(--text-secondary)]">我的资料库</h2>
         <button
           onClick={handleAdd}
-          className="text-xs font-medium text-blue-600 hover:text-blue-800 transition-colors"
+          className="text-xs font-medium text-[var(--accent)] hover:underline transition-colors"
         >
           + 添加
         </button>
@@ -83,11 +87,11 @@ export default function LibrarySidebar({
                 key={lib}
                 onClick={() => onSelectLibrary(lib)}
                 className={`group flex flex-col p-2.5 cursor-pointer rounded-lg transition-colors ${
-                  isSelected ? "bg-white shadow-sm ring-1 ring-gray-200" : "hover:bg-gray-200/50"
+                  isSelected ? "bg-[var(--base03)] shadow-sm ring-1 ring-[var(--border)]" : "hover:bg-[var(--base03)]/50"
                 }`}
               >
                 <div className="flex items-center justify-between">
-                  <span className={`text-sm font-medium truncate ${isSelected ? "text-blue-600" : "text-gray-700"}`} title={lib}>
+                  <span className={`text-sm font-medium truncate ${isSelected ? "text-[var(--accent)]" : "text-[var(--text-primary)]"}`} title={lib}>
                     {folderName}
                   </span>
                   <div className="hidden group-hover:flex items-center space-x-2">
@@ -103,26 +107,40 @@ export default function LibrarySidebar({
                     </button>
                   </div>
                 </div>
-                <div className="text-[10px] text-gray-400 mt-0.5 truncate" title={lib}>{lib}</div>
+                <div className="text-[10px] text-[var(--text-secondary)] mt-0.5 truncate" title={lib}>{lib}</div>
               </div>
             );
           })
         )}
       </div>
 
+      <div className="px-4 py-2 border-t border-[var(--border)]">
+        <label className="flex items-center space-x-2 cursor-pointer group">
+          <input 
+            type="checkbox" 
+            checked={rebuildMetadata} 
+            onChange={(e) => setRebuildMetadata(e.target.checked)}
+            className="rounded border-[var(--border)] bg-[var(--bg-primary)] text-[var(--accent)] focus:ring-[var(--accent)]"
+          />
+          <span className="text-xs text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] transition-colors">
+            重构元数据 (重新扫描)
+          </span>
+        </label>
+      </div>
+
       {scanProgress && (
-        <div className="p-4 bg-white border-t border-gray-200 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
-          <div className="mb-1.5 text-xs text-gray-600 font-medium flex justify-between">
+        <div className="p-4 bg-[var(--bg-primary)] border-t border-[var(--border)] shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
+          <div className="mb-1.5 text-xs text-[var(--text-secondary)] font-medium flex justify-between">
             <span>扫描媒体</span>
-            <span>{Math.round(scanProgress.total_videos > 0 ? (scanProgress.processed / scanProgress.total_videos) * 100 : 0)}%</span>
+            <span className="text-[var(--accent)]">{Math.round(scanProgress.total_videos > 0 ? (scanProgress.processed / scanProgress.total_videos) * 100 : 0)}%</span>
           </div>
-          <div className="w-full bg-gray-100 rounded-full h-1.5 mb-1.5">
+          <div className="w-full bg-[var(--base02)] rounded-full h-1.5 mb-1.5">
             <div
-              className="bg-blue-500 h-1.5 rounded-full transition-all duration-300"
+              className="bg-[var(--accent)] h-1.5 rounded-full transition-all duration-300 shadow-[0_0_8px_var(--accent)]"
               style={{ width: `${scanProgress.total_videos > 0 ? (scanProgress.processed / scanProgress.total_videos) * 100 : 0}%` }}
             ></div>
           </div>
-          <div className="text-[10px] text-gray-400 truncate" title={scanProgress.current_file}>
+          <div className="text-[10px] text-[var(--text-secondary)] truncate" title={scanProgress.current_file}>
             {scanProgress.current_file || "..."}
           </div>
         </div>
