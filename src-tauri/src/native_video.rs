@@ -361,20 +361,25 @@ where F: FnMut(f64) {
         .args([
             "-i",
             input_path.to_str().ok_or("无效的输入路径")?,
-            "-c:v",
-            "libx264",
-            "-preset",
-            "medium",
-            "-crf",
-            "23",
-            "-c:a",
-            "aac",
-            "-b:a",
-            "128k",
-            "-movflags",
-            "+faststart",
-            "-progress",
-            "pipe:1", // 将进度信息输出到 stdout
+            // Explicitly select first video stream and ALL audio streams.
+            // The `?` flag makes audio selection non-fatal (files with no audio still work).
+            "-map", "0:v:0",
+            "-map", "0:a?",
+            // Video: H.264, medium quality
+            "-c:v", "libx264",
+            "-preset", "medium",
+            "-crf", "23",
+            // Audio: AAC, 192k stereo.
+            // -ac 2  → always output stereo (fixes AVI stereo→mono regression).
+            // aresample with swr → software resampler handles exotic codecs
+            //   like RealAudio (RMVB) where the default resampler emits silence.
+            "-c:a", "aac",
+            "-b:a", "192k",
+            "-ac", "2",
+            "-af", "aresample=resampler=swr",
+            // Fast browser streaming
+            "-movflags", "+faststart",
+            "-progress", "pipe:1",
             "-y",
             output_path.to_str().ok_or("无效的输出路径")?,
         ])

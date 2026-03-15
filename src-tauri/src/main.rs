@@ -45,8 +45,10 @@ fn main() {
             commands::play_video_with_vlc,
             commands::check_vlc_available,
             commands::upgrade_video_to_mp4,
+            commands::retranscode_video,
             commands::open_player_window,
             commands::get_transcode_jobs,
+            commands::reveal_in_finder,
             watcher::watch_directory,
             watcher::unwatch_directory,
         ])

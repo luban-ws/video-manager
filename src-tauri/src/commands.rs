@@ -444,3 +444,59 @@ pub async fn open_player_window(
 
     Ok(())
 }
+
+// ─── Re-transcode: delete existing MP4 then re-queue ─────────────────────────
+#[tauri::command]
+pub async fn retranscode_video(
+    video_path: String,
+    markdown_path: String,
+    title: String,
+    transcoder: State<'_, transcoder::TranscoderManager>,
+) -> Result<String, String> {
+    // Derive the expected MP4 output path (same stem, .mp4 extension).
+    let output_path = std::path::Path::new(&video_path).with_extension("mp4");
+
+    // Delete the old MP4 so the job truly restarts from scratch.
+    // Guard: don't delete if input IS already the mp4 (same path).
+    if output_path.exists() && output_path != std::path::Path::new(&video_path) {
+        std::fs::remove_file(&output_path)
+            .map_err(|e| format!("无法删除旧 MP4: {e}"))?;
+    }
+
+    Ok(transcoder.add_job(video_path, markdown_path, title))
+}
+
+// ─── Reveal in Finder / Explorer ─────────────────────────────────────────────
+#[tauri::command]
+pub async fn reveal_in_finder(
+    path: String,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
+    let p = std::path::Path::new(&path);
+
+    // macOS: `open -R <file>` reveals and selects the exact file in Finder.
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg("-R")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| format!("无法在 Finder 中显示文件: {e}"))?;
+        return Ok(());
+    }
+
+    // Windows / Linux: open the parent directory via the opener plugin.
+    #[cfg(not(target_os = "macos"))]
+    {
+        use tauri_plugin_opener::OpenerExt;
+        let dir = if p.is_file() {
+            p.parent().unwrap_or(p)
+        } else {
+            p
+        };
+        app.opener()
+            .open_path(dir.to_string_lossy().as_ref(), None::<&str>)
+            .map_err(|e| format!("无法打开文件夹: {e}"))?;
+        Ok(())
+    }
+}
