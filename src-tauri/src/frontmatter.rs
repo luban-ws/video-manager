@@ -73,3 +73,66 @@ pub fn generate_markdown(metadata: &VideoMetadata, content: &str) -> Result<Stri
 pub fn update_timestamp(metadata: &mut VideoMetadata) {
     metadata.updated_at = chrono::Utc::now().to_rfc3339();
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_markdown_with_frontmatter() {
+        let content = "---\ntitle: My Video\nsource_type: local\ncreated_at: '2024-01-01T00:00:00Z'\nupdated_at: '2024-01-01T00:00:00Z'\ntags: []\n---\n\n## Notes\n";
+        let (meta, body) = parse_markdown(content).unwrap();
+        assert_eq!(meta.title, "My Video");
+        assert_eq!(meta.source_type, "local");
+        assert!(body.contains("Notes"));
+    }
+
+    #[test]
+    fn test_parse_markdown_without_frontmatter_uses_defaults() {
+        let content = "Just some plain markdown.";
+        let (meta, body) = parse_markdown(content).unwrap();
+        assert_eq!(meta.title, "未命名文档");
+        assert_eq!(body, content);
+    }
+
+    #[test]
+    fn test_generate_then_parse_roundtrip() {
+        let meta = VideoMetadata {
+            title: "Round Trip".to_string(),
+            source_type: "local".to_string(),
+            video_filename: Some("video.mp4".to_string()),
+            tags: vec!["foo".to_string(), "bar".to_string()],
+            created_at: "2024-01-01T00:00:00Z".to_string(),
+            updated_at: "2024-01-01T00:00:00Z".to_string(),
+            ..Default::default()
+        };
+        let generated = generate_markdown(&meta, "## Body").unwrap();
+        let (parsed_meta, parsed_body) = parse_markdown(&generated).unwrap();
+        assert_eq!(parsed_meta.title, "Round Trip");
+        assert_eq!(parsed_meta.tags, vec!["foo", "bar"]);
+        assert!(parsed_body.contains("Body"));
+    }
+
+    #[test]
+    fn test_parse_tags_default_empty() {
+        let content = "---\ntitle: NoTags\nsource_type: local\ncreated_at: '2024-01-01T00:00:00Z'\nupdated_at: '2024-01-01T00:00:00Z'\n---\n";
+        let (meta, _) = parse_markdown(content).unwrap();
+        assert!(meta.tags.is_empty(), "tags should default to empty vec");
+    }
+
+    #[test]
+    fn test_update_timestamp_changes_field() {
+        let mut meta = VideoMetadata {
+            updated_at: "2000-01-01T00:00:00Z".to_string(),
+            created_at: "2000-01-01T00:00:00Z".to_string(),
+            title: "t".to_string(),
+            source_type: "local".to_string(),
+            ..Default::default()
+        };
+        let old = meta.updated_at.clone();
+        // small sleep to ensure clock advances
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        update_timestamp(&mut meta);
+        assert_ne!(meta.updated_at, old, "updated_at must be updated");
+    }
+}

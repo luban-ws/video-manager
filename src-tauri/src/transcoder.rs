@@ -140,10 +140,13 @@ fn update_sidecar_after_transcode(markdown_path: &str, output_path: &Path) -> Re
 
     let (mut fm, body) = frontmatter::parse_markdown(&content)?;
     
-    // Extract new metadata
+    // Extract new metadata (from the generated MP4)
     let new_metadata = native_video::extract_metadata_and_thumbnail(output_path)?;
     
-    fm.video_filename = Some(output_path.file_name().unwrap().to_string_lossy().to_string());
+    // DELIBERATELY DO NOT OVERWRITE fm.video_filename!
+    // The user wants to keep the original file name (e.g. foo.rmvb) in the markdown sidecar.
+    // The Smart Source Selection logic (in filesystem.rs) will automatically detect and play the .mp4.
+    
     fm.source_type = "local".to_string();
     fm.duration = Some(new_metadata.duration as i64);
     fm.width = Some(new_metadata.width);

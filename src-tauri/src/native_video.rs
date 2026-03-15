@@ -353,6 +353,10 @@ where F: FnMut(f64) {
         return Err("ffmpeg 未安装。请先安装 ffmpeg: https://ffmpeg.org/".to_string());
     }
 
+    // Determine a temporary output path to avoid "Output same as Input" errors
+    // when retranscoding an existing MP4.
+    let temp_output = output_path.with_extension("temp.mp4");
+
     // 3. 执行转换并解析 stderr 获取进度
     use std::io::{BufRead, BufReader};
     use std::process::Stdio;
@@ -381,22 +385,35 @@ where F: FnMut(f64) {
             "-movflags", "+faststart",
             "-progress", "pipe:1",
             "-y",
-            output_path.to_str().ok_or("无效的输出路径")?,
+            temp_output.to_str().ok_or("无效的临时输出路径")?,
         ])
         .stdout(Stdio::piped())
-        .stderr(Stdio::null()) // Discard stderr to prevent stalling if pipe buffer fills up
+        .stderr(Stdio::piped())
         .spawn()
         .map_err(|e| format!("启动 ffmpeg 失败: {e}"))?;
 
     let stdout = child.stdout.take().ok_or("无法获取 stdout")?;
+    let stderr = child.stderr.take().ok_or("无法获取 stderr")?;
+
+    // Read stderr in a background thread to prevent deadlocks and capture errors
+    let stderr_thread = std::thread::spawn(move || {
+        let reader = BufReader::new(stderr);
+        let mut error_log = String::new();
+        for line in reader.lines() {
+            if let Ok(line) = line {
+                // Print directly to Tauri backend terminal for debugging
+                println!("[FFmpeg] {}", line);
+                error_log.push_str(&line);
+                error_log.push('\n');
+            }
+        }
+        error_log
+    });
+
     let reader = BufReader::new(stdout);
 
     for line in reader.lines() {
         if let Ok(line) = line {
-            // ffmpeg -progress pipe:1 输出格式如:
-            // out_time_ms=23000000
-            // ...
-            // progress=continue
             if line.starts_with("out_time_ms=") {
                 if let Ok(ms) = line[12..].parse::<i64>() {
                     let current_secs = ms as f64 / 1_000_000.0;
@@ -410,9 +427,20 @@ where F: FnMut(f64) {
     }
 
     let status = child.wait().map_err(|e| format!("等待 ffmpeg 完成失败: {e}"))?;
+    let error_log = stderr_thread.join().unwrap_or_default();
+
     if !status.success() {
-        return Err("ffmpeg 执行失败".to_string());
+        // Cleanup the failed temporary file
+        let _ = std::fs::remove_file(&temp_output);
+        // Find the most relevant error lines (usually near the end)
+        let last_lines: Vec<&str> = error_log.lines().rev().take(10).collect();
+        let short_error = last_lines.into_iter().rev().collect::<Vec<_>>().join("\n");
+        return Err(format!("ffmpeg 执行失败:\n{}", short_error));
     }
+
+    // Success! Rename the temp file to the final destination
+    std::fs::rename(&temp_output, output_path)
+        .map_err(|e| format!("重命名临时视频文件失败: {e}"))?;
 
     Ok(())
 }

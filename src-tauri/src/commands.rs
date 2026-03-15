@@ -422,9 +422,19 @@ pub async fn open_player_window(
 ) -> Result<(), String> {
     let window_label = format!("player-{}", uuid::Uuid::new_v4());
     
+    // Smart MP4 Fallback: If UI asks to play .rmvb but .mp4 exists, use .mp4
+    let mut final_path = video_path.clone();
+    let p = std::path::Path::new(&video_path);
+    if p.extension().and_then(|e| e.to_str()).map(|s| s.to_lowercase()) != Some("mp4".to_string()) {
+        let mp4_candidate = p.with_extension("mp4");
+        if mp4_candidate.exists() {
+            final_path = mp4_candidate.to_string_lossy().to_string();
+        }
+    }
+
     // 设置播放器路由
     let url = format!("/player?videoPath={}&title={}",
-        urlencoding::encode(&video_path),
+        urlencoding::encode(&final_path),
         urlencoding::encode(&title)
     );
     
@@ -453,17 +463,42 @@ pub async fn retranscode_video(
     title: String,
     transcoder: State<'_, transcoder::TranscoderManager>,
 ) -> Result<String, String> {
-    // Derive the expected MP4 output path (same stem, .mp4 extension).
-    let output_path = std::path::Path::new(&video_path).with_extension("mp4");
+    let p = std::path::Path::new(&video_path);
+    let output_path = p.with_extension("mp4");
+    let mut source_path = p.to_path_buf();
 
-    // Delete the old MP4 so the job truly restarts from scratch.
-    // Guard: don't delete if input IS already the mp4 (same path).
-    if output_path.exists() && output_path != std::path::Path::new(&video_path) {
+    // If we were passed the MP4 path, let's look for the original source file 
+    // (e.g. .rmvb, .avi) so we can re-encode from the raw source, not a compressed mp4.
+    if let Some(ext) = p.extension().and_then(|e| e.to_str()) {
+        if ext.to_lowercase() == "mp4" {
+            if let Some(parent) = p.parent() {
+                if let Some(stem) = p.file_stem() {
+                    // Supported legacy extensions from our scanner
+                    let legacy_exts = [
+                        "mkv", "mov", "avi", "webm", "m4v", "flv", "wmv", "mpg", "mpeg", 
+                        "3gp", "ts", "m2ts", "rmvb", "rm", "ogm", "ogv", "vob", "divx", "asf"
+                    ];
+                    for l_ext in &legacy_exts {
+                        let candidate = parent.join(stem).with_extension(l_ext);
+                        if candidate.exists() && candidate.is_file() {
+                            source_path = candidate;
+                            break; // prioritize the first one we find
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Delete the old MP4 so the job truly restarts from scratch, and 
+    // the frontend won't accidentally play the old one during transcode.
+    // Guard: don't delete if input IS already the mp4 and we couldn't find a raw source.
+    if output_path.exists() && source_path != output_path {
         std::fs::remove_file(&output_path)
             .map_err(|e| format!("无法删除旧 MP4: {e}"))?;
     }
 
-    Ok(transcoder.add_job(video_path, markdown_path, title))
+    Ok(transcoder.add_job(source_path.to_string_lossy().to_string(), markdown_path, title))
 }
 
 // ─── Reveal in Finder / Explorer ─────────────────────────────────────────────
