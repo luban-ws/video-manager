@@ -77,10 +77,6 @@ impl TranscoderManager {
                             } else {
                                 job.status = TranscodeStatus::Completed;
                                 job.progress = 100.0;
-                                
-                                // Optional: Original file backup handle
-                                let bak_path = input_path.with_extension(format!("{}.bak", input_path.extension().unwrap_or_default().to_string_lossy()));
-                                let _ = std::fs::rename(input_path, bak_path);
                             }
                         }
                         Err(e) => {
