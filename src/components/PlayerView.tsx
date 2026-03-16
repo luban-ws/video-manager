@@ -6,150 +6,133 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 // Custom modern styling for the video.js player
 const PLAYER_CSS = `
 .vjs-custom-skin {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  font-family: 'Inter', sans-serif;
 }
 
-/* Hide default big play button and use custom */
+/* Big Play Button - Cinematic Frost */
 .vjs-custom-skin .vjs-big-play-button {
-  width: 72px;
-  height: 72px;
+  width: 80px;
+  height: 80px;
   border-radius: 50%;
-  border: 2px solid rgba(255,255,255,0.9);
-  background: rgba(0,0,0,0.55);
-  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.05);
+  backdrop-filter: blur(20px);
   left: 50%;
   top: 50%;
-  margin-left: -36px;
-  margin-top: -36px;
-  line-height: 72px;
-  font-size: 28px;
-  transition: all 0.2s ease;
+  margin-left: -40px;
+  margin-top: -40px;
+  line-height: 80px;
+  font-size: 32px;
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 0 40px rgba(0,0,0,0.4);
 }
 .vjs-custom-skin .vjs-big-play-button:hover {
-  background: rgba(38,139,210,0.75);
-  border-color: #268bd2;
-  transform: scale(1.08);
+  background: var(--accent);
+  border-color: var(--accent);
+  transform: scale(1.1);
+  box-shadow: 0 0 60px rgba(225, 29, 72, 0.3);
 }
 .vjs-custom-skin .vjs-big-play-button .vjs-icon-placeholder:before {
-  line-height: 72px;
+  line-height: 80px;
+  color: white;
 }
 
-/* Control bar */
+/* Control Bar - Gradient Fade */
 .vjs-custom-skin .vjs-control-bar {
-  background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0) 100%);
-  height: 52px;
-  padding: 0 12px;
+  background: linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0) 100%);
+  height: 64px;
+  padding: 0 24px;
   align-items: center;
   display: flex;
-  transition: opacity 0.3s ease;
 }
 
-/* Progress bar */
+/* Progress Control - Minimalist Line */
 .vjs-custom-skin .vjs-progress-control {
   position: absolute;
-  bottom: 52px;
+  bottom: 64px;
   left: 0;
   right: 0;
   width: 100%;
-  height: 4px;
-  transition: height 0.15s ease;
+  height: 2px;
+  transition: all 0.2s ease;
 }
 .vjs-custom-skin .vjs-progress-control:hover {
-  height: 8px;
-  bottom: 50px;
+  height: 6px;
+  bottom: 62px;
 }
 .vjs-custom-skin .vjs-progress-holder {
   height: 100%;
   margin: 0;
 }
 .vjs-custom-skin .vjs-play-progress {
-  background: #268bd2;
+  background: var(--accent);
 }
 .vjs-custom-skin .vjs-play-progress:before {
-  font-size: 12px;
-  top: -4px;
-  color: #268bd2;
+  display: none; /* Hide the knob for ultimate minimalism */
 }
 .vjs-custom-skin .vjs-load-progress {
-  background: rgba(255,255,255,0.2);
-}
-.vjs-custom-skin .vjs-slider-bar {
-  height: 100%;
+  background: rgba(255,255,255,0.1);
 }
 
-/* Buttons */
-.vjs-custom-skin .vjs-button > .vjs-icon-placeholder:before,
-.vjs-custom-skin .vjs-play-control .vjs-icon-placeholder:before,
-.vjs-custom-skin .vjs-mute-control .vjs-icon-placeholder:before,
-.vjs-custom-skin .vjs-fullscreen-control .vjs-icon-placeholder:before {
-  font-size: 18px;
-  line-height: 52px;
-  color: rgba(255,255,255,0.85);
-  transition: color 0.15s;
+/* Control Buttons */
+.vjs-custom-skin .vjs-button > .vjs-icon-placeholder:before {
+  font-size: 20px;
+  line-height: 64px;
+  color: rgba(255,255,255,0.6);
+  transition: all 0.2s ease;
 }
 .vjs-custom-skin .vjs-button:hover > .vjs-icon-placeholder:before {
-  color: #268bd2;
+  color: white;
+  transform: translateY(-1px);
 }
 
-/* Volume */
-.vjs-custom-skin .vjs-volume-panel {
-  display: flex;
-  align-items: center;
-}
-.vjs-custom-skin .vjs-volume-bar {
-  margin: 1.35em 0.45em;
-  background: rgba(255,255,255,0.25);
-}
+/* Volume Panel */
 .vjs-custom-skin .vjs-volume-level {
-  background: #268bd2;
-}
-.vjs-custom-skin .vjs-volume-level:before {
-  color: #268bd2;
+  background: var(--accent);
 }
 
-/* Time display */
+/* Time Display - Clean & Wide */
 .vjs-custom-skin .vjs-current-time,
 .vjs-custom-skin .vjs-time-divider,
 .vjs-custom-skin .vjs-duration {
-  font-size: 12px;
-  letter-spacing: 0.03em;
-  color: rgba(255,255,255,0.75);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.5);
   display: flex;
   align-items: center;
-  padding: 0 4px;
-}
-.vjs-custom-skin .vjs-remaining-time { display: none; }
-
-/* Playback rate */
-.vjs-custom-skin .vjs-playback-rate {
-  font-size: 12px;
-  color: rgba(255,255,255,0.75);
-}
-.vjs-custom-skin .vjs-playback-rate .vjs-playback-rate-value {
-  font-size: 12px;
-  line-height: 52px;
-  color: rgba(255,255,255,0.75);
 }
 
-/* Menu popup */
+/* Playback Rate */
+.vjs-custom-skin .vjs-playback-rate-value {
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 64px;
+  color: rgba(255,255,255,0.5);
+}
+
+/* Menus - Frost Glass */
 .vjs-custom-skin .vjs-menu-button-popup .vjs-menu {
-  background: rgba(15,15,20,0.95);
-  backdrop-filter: blur(12px);
-  border-radius: 8px;
-  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(10,10,12,0.8);
+  backdrop-filter: blur(24px);
+  border-radius: 4px;
+  border: 1px solid rgba(255,255,255,0.05);
   overflow: hidden;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  bottom: 70px;
 }
 .vjs-custom-skin .vjs-menu-item {
-  font-size: 13px;
-  padding: 8px 16px;
-  color: rgba(255,255,255,0.75);
-  transition: background 0.15s;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 12px 20px;
+  color: rgba(255,255,255,0.4);
 }
 .vjs-custom-skin .vjs-menu-item:hover,
 .vjs-custom-skin .vjs-menu-item.vjs-selected {
-  background: rgba(38,139,210,0.25);
-  color: #268bd2;
+  background: rgba(255,255,255,0.05);
+  color: var(--accent);
 }
 `;
 

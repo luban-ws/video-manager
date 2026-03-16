@@ -81,9 +81,10 @@ pub async fn watch_directory(
     watchers.insert(dir_path.clone(), watcher);
 
     // Spawn an async task to process events
+    let dir_path_for_loop = PathBuf::from(&dir_path);
     tauri::async_runtime::spawn(async move {
         while let Some(event) = rx.recv().await {
-            handle_event(event, &app).await;
+            handle_event(event, &app, &dir_path_for_loop).await;
         }
     });
 
@@ -104,21 +105,17 @@ pub async fn unwatch_directory(
     Ok(())
 }
 
-async fn handle_event(event: Event, app: &AppHandle) {
+async fn handle_event(event: Event, app: &AppHandle, base_dir: &Path) {
     match event.kind {
         EventKind::Create(_) | EventKind::Modify(_) => {
             for path in event.paths {
                 if is_video_file(&path) {
                     println!("Tauri Watcher: Detected potentially new/modified video: {path:?}");
                     
-                    // DEBOUNCE WAIT:
-                    // If a user drops a large file, the OS might fire Create/Modify events continuously.
-                    // Instead of full debouncing map, we wait a few seconds and check if file size stabilized,
-                    // or just optimistically wait 3 seconds before processing it.
                     sleep(Duration::from_secs(3)).await;
 
                     if path.exists() {
-                        let result = process_video_file(&path, false);
+                        let result = process_video_file(&path, base_dir, false);
                         if let Ok(true) = result {
                             // Successfully grabbed a new sidecar, alert the UI
                             println!("Tauri Watcher: Generated sidecar for {path:?}");

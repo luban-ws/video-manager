@@ -109,7 +109,7 @@ function App() {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-[var(--bg-primary)] overflow-hidden text-[var(--text-primary)] font-sans solarized-dark">
+    <div className="h-screen flex flex-col bg-[var(--bg-primary)] overflow-hidden text-[var(--text-primary)] font-sans">
       <div className="flex-1 overflow-hidden relative">
         <ResizableSplitter
           left={
