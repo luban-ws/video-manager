@@ -402,6 +402,12 @@ pub async fn upgrade_video_to_mp4(
     title: String,
     transcoder: State<'_, transcoder::TranscoderManager>,
 ) -> Result<String, String> {
+    // Short circuit if already mp4 to avoid redundant work
+    let p = std::path::Path::new(&video_path);
+    if p.extension().and_then(|e| e.to_str()).map(|s| s.to_lowercase()) == Some("mp4".to_string()) {
+        return Ok("Skip: Already MP4".to_string());
+    }
+    
     Ok(transcoder.add_job(video_path, markdown_path, title))
 }
 
@@ -482,13 +488,6 @@ pub fn find_primary_source_path(video_path: &str) -> std::path::PathBuf {
                             source_path = candidate;
                             break; // prioritize the first one we find
                         }
-                        
-                        // Check for .bak versions of legacy files
-                        let bak_candidate = parent.join(stem).with_extension(format!("{l_ext}.bak"));
-                        if bak_candidate.exists() && bak_candidate.is_file() {
-                            source_path = bak_candidate;
-                            break;
-                        }
                     }
                 }
             }
@@ -497,7 +496,7 @@ pub fn find_primary_source_path(video_path: &str) -> std::path::PathBuf {
     source_path
 }
 
-// ─── Re-transcode: delete existing MP4 then re-queue ─────────────────────────
+// ─── Re-transcode: delete existing MP4 if it's not the primary source, then re-queue ───
 #[tauri::command]
 pub async fn retranscode_video(
     video_path: String,
@@ -505,15 +504,33 @@ pub async fn retranscode_video(
     title: String,
     transcoder: State<'_, transcoder::TranscoderManager>,
 ) -> Result<String, String> {
-    let p = std::path::Path::new(&video_path);
-    let output_path = p.with_extension("mp4");
-    
-    // Find the original raw source (e.g. .rmvb) if current video_path is the .mp4
-    let source_path = find_primary_source_path(&video_path);
+    let md_p = std::path::Path::new(&markdown_path);
+    let mut source_path = std::path::PathBuf::from(&video_path);
 
-    // Delete the old MP4 so the job truly restarts from scratch, and 
+    // 1. Try to find the original raw source from the sidecar metadata first (Audit Trail)
+    if md_p.exists() {
+        if let Ok((metadata, _)) = crate::filesystem::read_markdown_file(md_p) {
+            if let Some(orig_name) = metadata.original_video_filename {
+                if let Some(parent) = md_p.parent() {
+                    let candidate = parent.join(orig_name);
+                    if candidate.exists() && candidate.is_file() {
+                        source_path = candidate;
+                    }
+                }
+            }
+        }
+    }
+
+    // 2. If metadata didn't help (e.g. legacy sidecar), fallback to filesystem guessing
+    if source_path.extension().and_then(|e| e.to_str()).map(|s| s.to_lowercase()) == Some("mp4".to_string()) {
+        source_path = find_primary_source_path(&source_path.to_string_lossy());
+    }
+
+    let output_path = crate::filesystem::get_mp4_path(&source_path);
+
+    // 3. Delete the old MP4 so the job truly restarts from scratch, and 
     // the frontend won't accidentally play the old one during transcode.
-    // Guard: don't delete if input IS already the mp4 and we couldn't find a raw source.
+    // Guard: don't delete if input IS already the main source we are using.
     if output_path.exists() && source_path != output_path {
         std::fs::remove_file(&output_path)
             .map_err(|e| format!("无法删除旧 MP4: {e}"))?;
@@ -641,15 +658,15 @@ mod tests {
     }
 
     #[test]
-    fn test_find_primary_source_path_mp4_returns_bak_if_exists() {
+    fn test_find_primary_source_path_mp4_returns_original_if_exists() {
         let dir = tempdir().unwrap();
         let mp4_path = dir.path().join("video.mp4");
-        // Simulated backup of original rmvb
-        let bak_path = dir.path().join("video.rmvb.bak");
+        // Original rmvb exists alongside mp4
+        let rmvb_path = dir.path().join("video.rmvb");
         File::create(&mp4_path).unwrap();
-        File::create(&bak_path).unwrap();
+        File::create(&rmvb_path).unwrap();
         
         let source = find_primary_source_path(mp4_path.to_str().unwrap());
-        assert_eq!(source, bak_path);
+        assert_eq!(source, rmvb_path);
     }
 }

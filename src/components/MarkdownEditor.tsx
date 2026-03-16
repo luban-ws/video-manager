@@ -506,7 +506,7 @@ export default function MarkdownEditor({
                                 <span>分离播放器</span>
                             </button>
 
-                            {metadata.codec && !metadata.codec.includes("h264") && (
+                            {metadata.codec && !metadata.codec.includes("h264") && !metadata.video_filename?.toLowerCase().endsWith(".mp4") && (
                                 <button
                                     onClick={() => {
                                         const videoPath = filePath?.substring(0, filePath.lastIndexOf("/") + 1) + metadata.video_filename;

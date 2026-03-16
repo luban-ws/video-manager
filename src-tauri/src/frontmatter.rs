@@ -8,6 +8,8 @@ pub struct VideoMetadata {
     pub source_type: String, // "local" or "remote"
     #[serde(skip_serializing_if = "Option::is_none")]
     pub video_filename: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub original_video_filename: Option<String>,
     #[serde(default)]
     pub url: String,
     #[serde(default)]

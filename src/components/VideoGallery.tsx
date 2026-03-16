@@ -180,7 +180,7 @@ export default function VideoGallery({ libraryPath, onSelectVideo, onScanRequest
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                         </svg>
                      </button>
-                     {video.metadata.codec && !video.metadata.codec.includes("h264") && (
+                     {video.metadata.codec && !video.metadata.codec.includes("h264") && !video.metadata.video_filename?.toLowerCase().endsWith(".mp4") && (
                         <button 
                             onClick={(e) => {
                                 e.stopPropagation();

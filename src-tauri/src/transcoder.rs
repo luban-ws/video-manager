@@ -106,7 +106,8 @@ impl TranscoderManager {
 
     pub fn add_job(&self, video_path: String, markdown_path: String, title: String) -> String {
         let id = Uuid::new_v4().to_string();
-        let output_path = Path::new(&video_path).with_extension("mp4").to_string_lossy().to_string();
+        let output_path = crate::filesystem::get_mp4_path(Path::new(&video_path))
+            .to_string_lossy().to_string();
         
         let job = TranscodeJob {
             id: id.clone(),
@@ -145,12 +146,18 @@ fn update_sidecar_after_transcode(markdown_path: &str, output_path: &Path) -> Re
 
     let (mut fm, body) = frontmatter::parse_markdown(&content)?;
     
+    // Record original source if not already set
+    if fm.original_video_filename.is_none() {
+        fm.original_video_filename = fm.video_filename.clone();
+    }
+
+    // Now switch the primary video_filename to the new MP4
+    fm.video_filename = Some(output_path.file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| "output.mp4".to_string()));
+
     // Extract new metadata (from the generated MP4)
     let new_metadata = native_video::extract_metadata_and_thumbnail(output_path)?;
-    
-    // DELIBERATELY DO NOT OVERWRITE fm.video_filename!
-    // The user wants to keep the original file name (e.g. foo.rmvb) in the markdown sidecar.
-    // The Smart Source Selection logic (in filesystem.rs) will automatically detect and play the .mp4.
     
     fm.source_type = "local".to_string();
     fm.duration = Some(new_metadata.duration as i64);

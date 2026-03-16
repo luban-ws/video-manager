@@ -114,7 +114,18 @@ pub fn extract_metadata_and_thumbnail(video_path: &Path) -> Result<LocalVideoMet
         .map_err(|e| format!("无法创建视频解码器: {e}"))?;
 
     let time_base = video_stream.time_base();
-    let duration_secs = video_stream.duration().max(0) as f64 * f64::from(time_base);
+    
+    // Improvement: More robust duration detection
+    let duration_secs = {
+        let stream_duration = video_stream.duration().max(0) as f64 * f64::from(time_base);
+        if stream_duration > 0.1 {
+            stream_duration
+        } else {
+            // Fallback to format duration if stream duration is missing/tiny
+            ictx.duration().max(0) as f64 / 1_000_000.0
+        }
+    };
+    
     let fps = video_stream.avg_frame_rate();
     let fps_value = if fps.numerator() > 0 && fps.denominator() > 0 {
         f64::from(fps.numerator()) / f64::from(fps.denominator())
@@ -126,17 +137,28 @@ pub fn extract_metadata_and_thumbnail(video_path: &Path) -> Result<LocalVideoMet
     let height = decoder.height();
 
     // seek to 50% to avoid black frames at the beginning
-    let seek_target_secs = duration_secs * 0.5;
-    let seek_pos = (seek_target_secs / f64::from(time_base)) as i64;
-    let _ = ictx.seek(seek_pos, ..seek_pos);
+    if duration_secs > 0.1 {
+        let seek_target_secs = duration_secs * 0.5;
+        let seek_pos = (seek_target_secs / f64::from(time_base)) as i64;
+        let _ = ictx.seek(seek_pos, ..seek_pos);
+    }
 
     let mut thumbnail_base64 = None;
+    let mut frames_decoded = 0;
+    const MAX_FRAMES_TO_TRY: usize = 50;
 
-    for (stream, packet) in ictx.packets() {
+    'outer: for (stream, packet) in ictx.packets() {
         if stream.index() == video_stream_index {
             let _ = decoder.send_packet(&packet);
             let mut decoded = ffmpeg_next::frame::Video::empty();
-            if decoder.receive_frame(&mut decoded).is_ok() {
+            
+            // Try to receive a frame. Some packets don't yield a full frame immediately.
+            while decoder.receive_frame(&mut decoded).is_ok() {
+                frames_decoded += 1;
+                
+                // If the frame is too small or clearly invalid, we might want to skip, 
+                // but for now, we just take the first successfully decoded frame.
+                
                 // Resize to max 320 width
                 let target_w = 320.min(width);
                 let target_h = if width > 0 { (height * target_w) / width } else { 180 };
@@ -155,7 +177,7 @@ pub fn extract_metadata_and_thumbnail(video_path: &Path) -> Result<LocalVideoMet
                 if let Ok(mut scaler) = scaler {
                     let _ = scaler.run(&decoded, &mut rgb_frame);
 
-                    // FFmpeg frames may have padding/stride. Copy row by row to get a tight buffer for the image crate.
+                    // FFmpeg frames may have padding/stride. Copy row by row.
                     let actual_w = rgb_frame.width() as usize;
                     let actual_h = rgb_frame.height() as usize;
                     let stride = rgb_frame.stride(0);
@@ -188,7 +210,10 @@ pub fn extract_metadata_and_thumbnail(video_path: &Path) -> Result<LocalVideoMet
                         }
                     }
                 }
-                break; // grabbed one frame
+                
+                if thumbnail_base64.is_some() || frames_decoded >= MAX_FRAMES_TO_TRY {
+                    break 'outer;
+                }
             }
         }
     }
@@ -353,11 +378,11 @@ where F: FnMut(f64) {
         return Err("ffmpeg 未安装。请先安装 ffmpeg: https://ffmpeg.org/".to_string());
     }
 
-    // Determine a temporary output path to avoid "Output same as Input" errors
-    // when retranscoding an existing MP4.
-    let temp_output = output_path.with_extension("temp.mp4");
+    // 3. Determine a staging output path to avoid "Output same as Input" errors
+    // and provide an atomic commit. This uses a hidden file (e.g. .filename.working).
+    let staging_output = crate::filesystem::get_working_path(output_path)?;
 
-    // 3. 执行转换并解析 stderr 获取进度
+    // 4. 执行转换并解析 stderr 获取进度
     use std::io::{BufRead, BufReader};
     use std::process::Stdio;
 
@@ -365,27 +390,19 @@ where F: FnMut(f64) {
         .args([
             "-i",
             input_path.to_str().ok_or("无效的输入路径")?,
-            // Explicitly select first video stream and ALL audio streams.
-            // The `?` flag makes audio selection non-fatal (files with no audio still work).
             "-map", "0:v:0",
             "-map", "0:a?",
-            // Video: H.264, medium quality
             "-c:v", "libx264",
             "-preset", "medium",
             "-crf", "23",
-            // Audio: AAC, 192k stereo.
-            // -ac 2  → always output stereo (fixes AVI stereo→mono regression).
-            // aresample with swr → software resampler handles exotic codecs
-            //   like RealAudio (RMVB) where the default resampler emits silence.
             "-c:a", "aac",
             "-b:a", "192k",
             "-ac", "2",
             "-af", "aresample=resampler=swr",
-            // Fast browser streaming
             "-movflags", "+faststart",
             "-progress", "pipe:1",
             "-y",
-            temp_output.to_str().ok_or("无效的临时输出路径")?,
+            staging_output.to_str().ok_or("无效的临时输出路径")?,
         ])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -395,12 +412,10 @@ where F: FnMut(f64) {
     let stdout = child.stdout.take().ok_or("无法获取 stdout")?;
     let stderr = child.stderr.take().ok_or("无法获取 stderr")?;
 
-    // Read stderr in a background thread to prevent deadlocks and capture errors
     let stderr_thread = std::thread::spawn(move || {
         let reader = BufReader::new(stderr);
         let mut error_log = String::new();
         for line in reader.lines().map_while(Result::ok) {
-            // Print directly to Tauri backend terminal for debugging
             println!("[FFmpeg] {line}");
             error_log.push_str(&line);
             error_log.push('\n');
@@ -426,17 +441,16 @@ where F: FnMut(f64) {
     let error_log = stderr_thread.join().unwrap_or_default();
 
     if !status.success() {
-        // Cleanup the failed temporary file
-        let _ = std::fs::remove_file(&temp_output);
-        // Find the most relevant error lines (usually near the end)
+        // Cleanup the failed staging file
+        let _ = std::fs::remove_file(&staging_output);
         let last_lines: Vec<&str> = error_log.lines().rev().take(10).collect();
         let short_error = last_lines.into_iter().rev().collect::<Vec<_>>().join("\n");
         return Err(format!("ffmpeg 执行失败:\n{short_error}"));
     }
 
-    // Success! Rename the temp file to the final destination
-    std::fs::rename(&temp_output, output_path)
-        .map_err(|e| format!("重命名临时视频文件失败: {e}"))?;
+    // Success! Atomic rename to final destination
+    std::fs::rename(&staging_output, output_path)
+        .map_err(|e| format!("重命名视频文件失败: {e}"))?;
 
     Ok(())
 }

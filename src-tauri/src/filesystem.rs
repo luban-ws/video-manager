@@ -196,6 +196,10 @@ pub fn list_markdown_files(dir_path: &Path) -> Result<Vec<FileInfo>, String> {
                         .and_then(|n| n.to_str())
                         .unwrap_or("")
                         .to_string()),
+                    original_video_filename: Some(path.file_name()
+                        .and_then(|n| n.to_str())
+                        .unwrap_or("")
+                        .to_string()),
                     platform: "本地视频".to_string(),
                     ..Default::default()
                 },
@@ -244,7 +248,7 @@ pub fn list_all_markdown_files(dir_path: &Path) -> Result<Vec<FileInfo>, String>
 }
 
 // 清理文件名（移除不安全字符）
-fn sanitize_filename(name: &str) -> String {
+pub fn sanitize_filename(name: &str) -> String {
     use regex::Regex;
     let re = Regex::new(r#"[<>:"/\\|?*]"#).unwrap();
     re.replace_all(name, "_").to_string()
@@ -252,11 +256,55 @@ fn sanitize_filename(name: &str) -> String {
         .to_string()
 }
 
+/// Central Naming Library: Generate the standard MP4 path for a given source video.
+pub fn get_mp4_path(source: &Path) -> PathBuf {
+    source.with_extension("mp4")
+}
+
+/// Central Naming Library: Generate the sidecar Markdown path for a given video.
+#[allow(dead_code)]
+pub fn get_sidecar_path(video: &Path) -> PathBuf {
+    video.with_extension("md")
+}
+
+/// Central Naming Library: Generate a hidden staging path for atomic file operations.
+/// This prevents FFmpeg from failing when input and output paths are identical
+/// and ensures that the user never sees a partially written or corrupt file.
+pub fn get_working_path(target: &Path) -> Result<PathBuf, String> {
+    let file_name = target.file_name()
+        .ok_or_else(|| "无效的文件路径".to_string())?
+        .to_string_lossy();
+    
+    let extension = target.extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("");
+    
+    let stem = target.file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or(&file_name);
+
+    // Pattern: .[stem].working.[ext] (e.g. .video.working.mp4)
+    // This allows FFmpeg to detect the format by trailing extension.
+    if extension.is_empty() {
+        Ok(target.with_file_name(format!(".{stem}.working")))
+    } else {
+        Ok(target.with_file_name(format!(".{stem}.working.{extension}")))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::fs::File;
     use tempfile::tempdir;
+
+    #[test]
+    fn test_naming_library() {
+        let p = Path::new("/movies/film.rmvb");
+        assert_eq!(get_mp4_path(p), Path::new("/movies/film.mp4"));
+        assert_eq!(get_sidecar_path(p), Path::new("/movies/film.md"));
+        assert_eq!(get_working_path(Path::new("/movies/film.mp4")).unwrap(), Path::new("/movies/.film.working.mp4"));
+    }
 
     #[test]
     fn test_sanitize_filename() {
