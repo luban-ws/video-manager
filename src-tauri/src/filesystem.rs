@@ -251,3 +251,77 @@ fn sanitize_filename(name: &str) -> String {
         .trim()
         .to_string()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs::File;
+    use tempfile::tempdir;
+
+    #[test]
+    fn test_sanitize_filename() {
+        assert_eq!(sanitize_filename("Normal Title"), "Normal Title");
+        assert_eq!(sanitize_filename("Title with / slash"), "Title with _ slash");
+        assert_eq!(sanitize_filename("Title with < > : \" / \\ | ? *"), "Title with _ _ _ _ _ _ _ _ _");
+    }
+
+    #[test]
+    fn test_detect_file_type() {
+        assert_eq!(detect_file_type(Path::new("video.mp4")), FileType::Video);
+        assert_eq!(detect_file_type(Path::new("movie.rmvb")), FileType::Video);
+        assert_eq!(detect_file_type(Path::new("notes.md")), FileType::Markdown);
+        assert_eq!(detect_file_type(Path::new("README.markdown")), FileType::Markdown);
+        assert_eq!(detect_file_type(Path::new("script.sh")), FileType::Other);
+    }
+
+    #[test]
+    fn test_resolve_smart_video_path_swaps_to_mp4() {
+        let dir = tempdir().unwrap();
+        let md_path = dir.path().join("video.md");
+        let mp4_path = dir.path().join("video.mp4");
+        
+        // Create the mp4 file
+        File::create(&mp4_path).unwrap();
+        
+        // Metadata initially points to rmvb
+        let mut metadata = VideoMetadata {
+            video_filename: Some("video.rmvb".to_string()),
+            ..VideoMetadata::default()
+        };
+        
+        resolve_smart_video_path(&md_path, &mut metadata);
+        
+        assert_eq!(metadata.video_filename, Some("video.mp4".to_string()));
+    }
+
+    #[test]
+    fn test_resolve_smart_video_path_stays_if_no_mp4() {
+        let dir = tempdir().unwrap();
+        let md_path = dir.path().join("video.md");
+        
+        let mut metadata = VideoMetadata {
+            video_filename: Some("video.rmvb".to_string()),
+            ..VideoMetadata::default()
+        };
+        
+        resolve_smart_video_path(&md_path, &mut metadata);
+        
+        // Should stay as rmvb because no mp4 file was created on disk
+        assert_eq!(metadata.video_filename, Some("video.rmvb".to_string()));
+    }
+
+    #[test]
+    fn test_resolve_smart_video_path_ignores_already_mp4() {
+        let dir = tempdir().unwrap();
+        let md_path = dir.path().join("video.md");
+        
+        let mut metadata = VideoMetadata {
+            video_filename: Some("video.mp4".to_string()),
+            ..VideoMetadata::default()
+        };
+        
+        resolve_smart_video_path(&md_path, &mut metadata);
+        
+        assert_eq!(metadata.video_filename, Some("video.mp4".to_string()));
+    }
+}

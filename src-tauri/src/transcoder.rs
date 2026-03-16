@@ -73,7 +73,7 @@ impl TranscoderManager {
                         Ok(_) => {
                             // Update sidecar
                             if let Err(e) = update_sidecar_after_transcode(&job.markdown_path, output_path) {
-                                job.status = TranscodeStatus::Failed(format!("Update metadata failed: {}", e));
+                                job.status = TranscodeStatus::Failed(format!("Update metadata failed: {e}"));
                             } else {
                                 job.status = TranscodeStatus::Completed;
                                 job.progress = 100.0;
@@ -134,9 +134,14 @@ impl TranscoderManager {
 }
 
 fn update_sidecar_after_transcode(markdown_path: &str, output_path: &Path) -> Result<(), String> {
+    println!("[Transcoder] Updating sidecar: {markdown_path}");
     let md_path = Path::new(markdown_path);
+    if !md_path.exists() {
+        return Err(format!("Sidecar file not found at: {markdown_path}"));
+    }
+    
     let mut content = std::fs::read_to_string(md_path)
-        .map_err(|e| format!("Failed to read sidebar: {e}"))?;
+        .map_err(|e| format!("Failed to read sidecar: {e}"))?;
 
     let (mut fm, body) = frontmatter::parse_markdown(&content)?;
     

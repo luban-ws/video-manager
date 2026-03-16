@@ -32,7 +32,7 @@ impl WatcherState {
 pub fn is_video_file(path: &Path) -> bool {
     let video_exts = [
         "mp4", "mkv", "mov", "avi", "webm", "m4v", "flv", "wmv", "mpg", "mpeg", "3gp", "ts",
-        "m2ts",
+        "m2ts", "rmvb", "rm", "ogm", "ogv", "vob", "divx", "asf"
     ];
     if let Some(ext) = path.extension().and_then(|s| s.to_str()) {
         video_exts.contains(&ext.to_lowercase().as_str())
@@ -134,15 +134,27 @@ async fn handle_event(event: Event, app: &AppHandle) {
                     println!("Tauri Watcher: Detected video removal: {path:?}");
                     // Emit a deletion event so the frontend can remove the UI tile
                     let _ = app.emit("file-deleted", path.to_string_lossy().to_string());
-                    
-                    // We also potentially want to delete the .md sidecar file here
-                    let md_path = path.with_extension("md");
-                    if md_path.exists() {
-                        let _ = std::fs::remove_file(md_path);
-                    }
                 }
             }
         }
         _ => {}
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::Path;
+
+    #[test]
+    fn test_is_video_file() {
+        assert!(is_video_file(Path::new("video.mp4")));
+        assert!(is_video_file(Path::new("movie.mkv")));
+        assert!(is_video_file(Path::new("CLIP.MOV")));
+        assert!(is_video_file(Path::new("old.rmvb")));
+        assert!(!is_video_file(Path::new("backup.rmvb.bak"))); // This should be false as .bak is the extension
+        assert!(!is_video_file(Path::new("notes.md")));
+        assert!(!is_video_file(Path::new("image.png")));
+        assert!(!is_video_file(Path::new("no_extension")));
     }
 }

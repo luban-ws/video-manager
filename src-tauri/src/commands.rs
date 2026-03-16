@@ -413,6 +413,18 @@ pub async fn get_transcode_jobs(
     Ok(transcoder.get_jobs())
 }
 
+pub fn resolve_player_video_path(video_path: &str) -> String {
+    let mut final_path = video_path.to_string();
+    let p = std::path::Path::new(video_path);
+    if p.extension().and_then(|e| e.to_str()).map(|s| s.to_lowercase()) != Some("mp4".to_string()) {
+        let mp4_candidate = p.with_extension("mp4");
+        if mp4_candidate.exists() {
+            final_path = mp4_candidate.to_string_lossy().to_string();
+        }
+    }
+    final_path
+}
+
 // 打开独立播放器窗口
 #[tauri::command]
 pub async fn open_player_window(
@@ -423,14 +435,7 @@ pub async fn open_player_window(
     let window_label = format!("player-{}", uuid::Uuid::new_v4());
     
     // Smart MP4 Fallback: If UI asks to play .rmvb but .mp4 exists, use .mp4
-    let mut final_path = video_path.clone();
-    let p = std::path::Path::new(&video_path);
-    if p.extension().and_then(|e| e.to_str()).map(|s| s.to_lowercase()) != Some("mp4".to_string()) {
-        let mp4_candidate = p.with_extension("mp4");
-        if mp4_candidate.exists() {
-            final_path = mp4_candidate.to_string_lossy().to_string();
-        }
-    }
+    let final_path = resolve_player_video_path(&video_path);
 
     // 设置播放器路由
     let url = format!("/player?videoPath={}&title={}",
@@ -443,7 +448,7 @@ pub async fn open_player_window(
         window_label,
         tauri::WebviewUrl::App(url.into())
     )
-    .title(format!("播放 - {}", title))
+    .title(format!("播放 - {title}"))
     .inner_size(1280.0, 720.0)
     .min_inner_size(640.0, 360.0)
     .resizable(true)
@@ -455,16 +460,9 @@ pub async fn open_player_window(
     Ok(())
 }
 
-// ─── Re-transcode: delete existing MP4 then re-queue ─────────────────────────
-#[tauri::command]
-pub async fn retranscode_video(
-    video_path: String,
-    markdown_path: String,
-    title: String,
-    transcoder: State<'_, transcoder::TranscoderManager>,
-) -> Result<String, String> {
-    let p = std::path::Path::new(&video_path);
-    let output_path = p.with_extension("mp4");
+
+pub fn find_primary_source_path(video_path: &str) -> std::path::PathBuf {
+    let p = std::path::Path::new(video_path);
     let mut source_path = p.to_path_buf();
 
     // If we were passed the MP4 path, let's look for the original source file 
@@ -484,11 +482,34 @@ pub async fn retranscode_video(
                             source_path = candidate;
                             break; // prioritize the first one we find
                         }
+                        
+                        // Check for .bak versions of legacy files
+                        let bak_candidate = parent.join(stem).with_extension(format!("{l_ext}.bak"));
+                        if bak_candidate.exists() && bak_candidate.is_file() {
+                            source_path = bak_candidate;
+                            break;
+                        }
                     }
                 }
             }
         }
     }
+    source_path
+}
+
+// ─── Re-transcode: delete existing MP4 then re-queue ─────────────────────────
+#[tauri::command]
+pub async fn retranscode_video(
+    video_path: String,
+    markdown_path: String,
+    title: String,
+    transcoder: State<'_, transcoder::TranscoderManager>,
+) -> Result<String, String> {
+    let p = std::path::Path::new(&video_path);
+    let output_path = p.with_extension("mp4");
+    
+    // Find the original raw source (e.g. .rmvb) if current video_path is the .mp4
+    let source_path = find_primary_source_path(&video_path);
 
     // Delete the old MP4 so the job truly restarts from scratch, and 
     // the frontend won't accidentally play the old one during transcode.
@@ -505,9 +526,9 @@ pub async fn retranscode_video(
 #[tauri::command]
 pub async fn reveal_in_finder(
     path: String,
-    app: tauri::AppHandle,
+    _app: tauri::AppHandle,
 ) -> Result<(), String> {
-    let p = std::path::Path::new(&path);
+    let _p = std::path::Path::new(&path);
 
     // macOS: `open -R <file>` reveals and selects the exact file in Finder.
     #[cfg(target_os = "macos")]
@@ -517,21 +538,118 @@ pub async fn reveal_in_finder(
             .arg(&path)
             .spawn()
             .map_err(|e| format!("无法在 Finder 中显示文件: {e}"))?;
-        return Ok(());
     }
-
     // Windows / Linux: open the parent directory via the opener plugin.
     #[cfg(not(target_os = "macos"))]
     {
         use tauri_plugin_opener::OpenerExt;
-        let dir = if p.is_file() {
-            p.parent().unwrap_or(p)
+        let dir = if _p.is_file() {
+            _p.parent().unwrap_or(_p)
         } else {
-            p
+            _p
         };
-        app.opener()
+        _app.opener()
             .open_path(dir.to_string_lossy().as_ref(), None::<&str>)
             .map_err(|e| format!("无法打开文件夹: {e}"))?;
-        Ok(())
+    }
+
+    Ok(())
+}
+
+// ─── Tests ───────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs::File;
+    use tempfile::tempdir;
+
+    #[test]
+    fn test_resolve_player_video_path_mp4_remains_mp4() {
+        let dir = tempdir().unwrap();
+        let mp4_path = dir.path().join("video.mp4");
+        File::create(&mp4_path).unwrap();
+        
+        let resolved = resolve_player_video_path(mp4_path.to_str().unwrap());
+        assert_eq!(resolved, mp4_path.to_str().unwrap());
+    }
+
+    #[test]
+    fn test_resolve_player_video_path_rmvb_to_mp4_if_exists() {
+        let dir = tempdir().unwrap();
+        let rmvb_path = dir.path().join("video.rmvb");
+        let mp4_path = dir.path().join("video.mp4");
+        File::create(&rmvb_path).unwrap();
+        File::create(&mp4_path).unwrap();
+        
+        let resolved = resolve_player_video_path(rmvb_path.to_str().unwrap());
+        assert_eq!(resolved, mp4_path.to_str().unwrap());
+    }
+
+    #[test]
+    fn test_resolve_player_video_path_rmvb_remains_rmvb_if_no_mp4() {
+        let dir = tempdir().unwrap();
+        let rmvb_path = dir.path().join("video.rmvb");
+        File::create(&rmvb_path).unwrap();
+        
+        let resolved = resolve_player_video_path(rmvb_path.to_str().unwrap());
+        assert_eq!(resolved, rmvb_path.to_str().unwrap());
+    }
+
+    #[test]
+    fn test_find_primary_source_path_rmvb_returns_rmvb() {
+        let dir = tempdir().unwrap();
+        let rmvb_path = dir.path().join("video.rmvb");
+        File::create(&rmvb_path).unwrap();
+        
+        let source = find_primary_source_path(rmvb_path.to_str().unwrap());
+        assert_eq!(source, rmvb_path);
+    }
+
+    #[test]
+    fn test_find_primary_source_path_mp4_returns_rmvb_if_exists() {
+        let dir = tempdir().unwrap();
+        let mp4_path = dir.path().join("video.mp4");
+        let rmvb_path = dir.path().join("video.rmvb");
+        File::create(&mp4_path).unwrap();
+        File::create(&rmvb_path).unwrap();
+        
+        let source = find_primary_source_path(mp4_path.to_str().unwrap());
+        assert_eq!(source, rmvb_path);
+    }
+
+    #[test]
+    fn test_find_primary_source_path_mp4_returns_avi_if_exists() {
+        let dir = tempdir().unwrap();
+        let mp4_path = dir.path().join("video.mp4");
+        let avi_path = dir.path().join("video.avi");
+        File::create(&mp4_path).unwrap();
+        File::create(&avi_path).unwrap();
+        
+        let source = find_primary_source_path(mp4_path.to_str().unwrap());
+        assert_eq!(source, avi_path);
+    }
+
+    #[test]
+    fn test_find_primary_source_path_mp4_returns_mp4_if_no_raw_source() {
+        let dir = tempdir().unwrap();
+        let mp4_path = dir.path().join("video.mp4");
+        File::create(&mp4_path).unwrap();
+        
+        let source = find_primary_source_path(mp4_path.to_str().unwrap());
+        assert_eq!(source, mp4_path);
+    }
+
+    #[test]
+    fn test_find_primary_source_path_mp4_returns_bak_if_exists() {
+        let dir = tempdir().unwrap();
+        let mp4_path = dir.path().join("video.mp4");
+        // Simulated backup of original rmvb
+        let bak_path = dir.path().join("video.rmvb.bak");
+        File::create(&mp4_path).unwrap();
+        File::create(&bak_path).unwrap();
+        
+        let source = find_primary_source_path(mp4_path.to_str().unwrap());
+        assert_eq!(source, bak_path);
     }
 }

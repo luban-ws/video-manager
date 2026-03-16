@@ -399,28 +399,24 @@ where F: FnMut(f64) {
     let stderr_thread = std::thread::spawn(move || {
         let reader = BufReader::new(stderr);
         let mut error_log = String::new();
-        for line in reader.lines() {
-            if let Ok(line) = line {
-                // Print directly to Tauri backend terminal for debugging
-                println!("[FFmpeg] {}", line);
-                error_log.push_str(&line);
-                error_log.push('\n');
-            }
+        for line in reader.lines().map_while(Result::ok) {
+            // Print directly to Tauri backend terminal for debugging
+            println!("[FFmpeg] {line}");
+            error_log.push_str(&line);
+            error_log.push('\n');
         }
         error_log
     });
 
     let reader = BufReader::new(stdout);
 
-    for line in reader.lines() {
-        if let Ok(line) = line {
-            if line.starts_with("out_time_ms=") {
-                if let Ok(ms) = line[12..].parse::<i64>() {
-                    let current_secs = ms as f64 / 1_000_000.0;
-                    if total_duration > 0.0 {
-                        let progress = (current_secs / total_duration * 100.0).min(99.9);
-                        progress_callback(progress);
-                    }
+    for line in reader.lines().map_while(Result::ok) {
+        if let Some(stripped) = line.strip_prefix("out_time_ms=") {
+            if let Ok(ms) = stripped.parse::<i64>() {
+                let current_secs = ms as f64 / 1_000_000.0;
+                if total_duration > 0.0 {
+                    let progress = (current_secs / total_duration * 100.0).min(99.9);
+                    progress_callback(progress);
                 }
             }
         }
@@ -435,7 +431,7 @@ where F: FnMut(f64) {
         // Find the most relevant error lines (usually near the end)
         let last_lines: Vec<&str> = error_log.lines().rev().take(10).collect();
         let short_error = last_lines.into_iter().rev().collect::<Vec<_>>().join("\n");
-        return Err(format!("ffmpeg 执行失败:\n{}", short_error));
+        return Err(format!("ffmpeg 执行失败:\n{short_error}"));
     }
 
     // Success! Rename the temp file to the final destination

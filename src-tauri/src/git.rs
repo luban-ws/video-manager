@@ -141,3 +141,36 @@ pub struct CommitInfo {
     pub author: String,
     pub time: i64,
 }
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+    use std::fs::File;
+
+    #[test]
+    fn test_git_init_and_add() {
+        let dir = tempdir().unwrap();
+        let repo_path = std::fs::canonicalize(dir.path()).unwrap();
+        let repo = init_repo(&repo_path).unwrap();
+        
+        let file_path = repo_path.join("test.txt");
+        File::create(&file_path).unwrap();
+        
+        add_file(&repo, &file_path).unwrap();
+        
+        let status = get_status(&repo).unwrap();
+        assert!(status.contains(&"test.txt".to_string()));
+    }
+
+    #[test]
+    fn test_get_or_init_repo() {
+        let dir = tempdir().unwrap();
+        // First call should init
+        let repo1 = get_or_init_repo(dir.path()).unwrap();
+        assert!(dir.path().join(".git").exists());
+        
+        // Second call should open
+        let repo2 = get_or_init_repo(dir.path()).unwrap();
+        assert_eq!(repo1.path(), repo2.path());
+    }
+}

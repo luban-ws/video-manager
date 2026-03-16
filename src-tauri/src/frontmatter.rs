@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct VideoMetadata {
+    #[serde(default)]
     pub title: String,
     #[serde(default)]
     pub source_type: String, // "local" or "remote"
@@ -23,10 +24,13 @@ pub struct VideoMetadata {
     pub codec: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub file_size: Option<u64>,
+    #[serde(default)]
     pub tags: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+    #[serde(default)]
     pub created_at: String,
+    #[serde(default)]
     pub updated_at: String,
 }
 
