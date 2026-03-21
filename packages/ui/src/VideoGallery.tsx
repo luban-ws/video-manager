@@ -1,52 +1,30 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, UnlistenFn } from "@tauri-apps/api/event";
-import { formatBytes, formatDuration } from "../utils/format";
+import { formatBytes, formatDuration, type FileInfo } from "@luban-ws/shared";
 import { useVirtualizer } from "@tanstack/react-virtual";
-
-interface VideoMetadata {
-  title?: string;
-  thumbnail?: string;
-  duration?: number;
-  source_type?: string;
-  video_filename?: string;
-  created_at?: string;
-  codec?: string;
-  file_size?: number;
-  width?: number;
-  height?: number;
-  fps?: number;
-  tags?: string[];
-}
-
-interface FileInfo {
-  path: string;
-  name: string;
-  metadata: VideoMetadata;
-  is_directory: boolean;
-  file_type: string;
-}
 
 interface Props {
   libraryPath: string;
-  onSelectVideo: (filePath: string) => void;
+  onVideoSelect: (video: FileInfo) => void;
   onScanRequest: () => void;
 }
 
 const CARD_MIN_WIDTH = 240;
 const CARD_GAP = 24;
 
-export default function VideoGallery({ libraryPath, onSelectVideo, onScanRequest }: Props) {
+export default function VideoGallery({ libraryPath, onVideoSelect, onScanRequest }: Props) {
   const [videos, setVideos] = useState<FileInfo[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const parentRef = useRef<HTMLDivElement>(null);
   const [parentWidth, setParentWidth] = useState(0);
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Measure parent width
   useEffect(() => {
     if (!parentRef.current) return;
     const observer = new ResizeObserver((entries) => {
-      for (let entry of entries) {
+      for (const entry of entries) {
         setParentWidth(entry.contentRect.width);
       }
     });
@@ -59,11 +37,9 @@ export default function VideoGallery({ libraryPath, onSelectVideo, onScanRequest
     return Math.max(1, Math.floor((parentWidth + CARD_GAP) / (CARD_MIN_WIDTH + CARD_GAP)));
   }, [parentWidth]);
 
-  const [searchQuery, setSearchQuery] = useState("");
-
   const loadVideos = useCallback(async () => {
     if (!libraryPath) return;
-    setLoading(true);
+    setIsLoading(true);
     try {
       const allFiles: FileInfo[] = await invoke("list_files", { dirPath: libraryPath });
       
@@ -82,17 +58,17 @@ export default function VideoGallery({ libraryPath, onSelectVideo, onScanRequest
     } catch (e) {
       console.error(e);
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   }, [libraryPath]);
 
   const filteredVideos = useMemo(() => {
     if (!searchQuery) return videos;
-    const query = searchQuery.toLowerCase();
+    const query = searchQuery.toLowerCase().trim();
     return videos.filter(video => {
       const titleMatch = (video.metadata.title || "").toLowerCase().includes(query);
       const fileMatch = (video.metadata.video_filename || "").toLowerCase().includes(query);
-      const tagMatch = (video.metadata.tags || []).some(tag => tag.toLowerCase().includes(query));
+      const tagMatch = (video.metadata.tags || []).some((tag: string) => tag.toLowerCase().includes(query));
       return titleMatch || fileMatch || tagMatch;
     });
   }, [videos, searchQuery]);
@@ -122,7 +98,7 @@ export default function VideoGallery({ libraryPath, onSelectVideo, onScanRequest
   const rowVirtualizer = useVirtualizer({
     count: Math.ceil(filteredVideos.length / columns),
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 320, // Height estimate for a card + metadata
+    estimateSize: () => 320,
     overscan: 3,
   });
 
@@ -180,7 +156,7 @@ export default function VideoGallery({ libraryPath, onSelectVideo, onScanRequest
 
       {/* Grid Content */}
       <div ref={parentRef} className="flex-1 overflow-y-auto p-8 bg-[var(--bg-primary)] h-full">
-        {loading && filteredVideos.length === 0 ? (
+        {isLoading && filteredVideos.length === 0 ? (
           <div className="flex items-center justify-center h-32 text-[var(--text-secondary)] font-black uppercase tracking-tighter">Loading...</div>
         ) : filteredVideos.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-64 text-[var(--text-secondary)] bg-[var(--bg-secondary)] rounded-sm border border-[var(--border)] border-dashed">
@@ -231,7 +207,7 @@ export default function VideoGallery({ libraryPath, onSelectVideo, onScanRequest
                       {/* Thumbnail Container */}
                       <div 
                         className="relative aspect-video bg-black/20 overflow-hidden"
-                        onClick={() => onSelectVideo(video.path)}
+                        onClick={() => onVideoSelect(video)}
                       >
                         {video.metadata.thumbnail ? (
                           <img 
@@ -288,7 +264,7 @@ export default function VideoGallery({ libraryPath, onSelectVideo, onScanRequest
                       </div>
 
                       {/* Header/Title Section */}
-                      <div className="p-4" onClick={() => onSelectVideo(video.path)}>
+                      <div className="p-4" onClick={() => onVideoSelect(video)}>
                         <h3 className="text-sm font-bold text-[var(--text-primary)] line-clamp-2 leading-tight group-hover:text-[var(--accent)] transition-smooth mb-2">
                           {video.metadata.title || video.name}
                         </h3>
@@ -296,7 +272,7 @@ export default function VideoGallery({ libraryPath, onSelectVideo, onScanRequest
                         {/* Tags Display */}
                         {video.metadata.tags && video.metadata.tags.length > 0 && (
                             <div className="flex flex-wrap gap-1.5 mb-3">
-                                {video.metadata.tags.slice(0, 3).map(tag => (
+                                {video.metadata.tags.slice(0, 3).map((tag: string) => (
                                     <span 
                                         key={tag} 
                                         className={`text-[9px] px-1.5 py-0.5 rounded-sm font-black uppercase tracking-tighter ${

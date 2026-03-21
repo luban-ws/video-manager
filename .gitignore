@@ -15,6 +15,7 @@ dist-ssr
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
+.theme
 .idea
 .DS_Store
 *.suo
@@ -23,6 +24,17 @@ dist-ssr
 *.sln
 *.sw?
 
-# Tauri
-src-tauri/target
-__pycache__
+# Turborepo
+.turbo
+
+# Tauri / Rust
+**/src-tauri/target
+**/target
+
+# Build artifacts
+packages/*/dist
+apps/*/dist
+
+# System Files
+.DS_Store
+Thumbs.db

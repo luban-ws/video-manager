@@ -2,11 +2,7 @@ import { useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 
-export interface ScanProgress {
-  total_videos: number;
-  processed: number;
-  current_file: string;
-}
+import { type ScanProgress } from "@luban-ws/shared";
 
 interface Props {
   libraries: string[];

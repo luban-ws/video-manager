@@ -1,12 +1,15 @@
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, UnlistenFn } from "@tauri-apps/api/event";
-import LibrarySidebar, { ScanProgress } from "./components/LibrarySidebar";
-import VideoGallery from "./components/VideoGallery";
-import MarkdownEditor from "./components/MarkdownEditor";
-import ResizableSplitter from "./components/ResizableSplitter";
-import TranscodeQueueUI from "./components/TranscodeQueueUI";
-import PlayerView from "./components/PlayerView";
+import { 
+  LibrarySidebar, 
+  VideoGallery, 
+  MarkdownEditor, 
+  ResizableSplitter, 
+  TranscodeQueueUI, 
+  PlayerView 
+} from "@luban-ws/ui";
+import { type ScanProgress, type FileInfo } from "@luban-ws/shared";
 
 const STORAGE_KEY = "video-manager-libraries";
 const SELECTED_LIB_KEY = "video-manager-selected-lib";
@@ -138,7 +141,7 @@ function App() {
               ) : (
                 <VideoGallery
                   libraryPath={selectedLibrary || ""}
-                  onSelectVideo={handleFileSelect}
+                  onVideoSelect={(video: FileInfo) => handleFileSelect(video.path)}
                   onScanRequest={() => selectedLibrary && handleScanLibrary(selectedLibrary)}
                 />
               )}

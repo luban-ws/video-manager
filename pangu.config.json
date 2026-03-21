@@ -1,0 +1,11 @@
+{
+    "demos": [
+        {
+            "name": "vm",
+            "package": "video-manager",
+            "description": "视频管理",
+            "value": "vm",
+            "args": ["run", "tauri:dev"]
+        }
+    ]
+}

@@ -3,9 +3,15 @@
   "version": "0.1.0",
   "identifier": "com.videomanager.app",
   "build": {
-    "beforeDevCommand": "pnpm dev",
+    "beforeDevCommand": {
+      "script": "pnpm dev",
+      "cwd": ".."
+    },
     "devUrl": "http://localhost:1421",
-    "beforeBuildCommand": "pnpm build",
+    "beforeBuildCommand": {
+      "script": "pnpm build",
+      "cwd": ".."
+    },
     "frontendDist": "../dist"
   },
   "app": {

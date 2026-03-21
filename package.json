@@ -1,49 +1,16 @@
 {
-    "name": "video-manager",
-    "version": "0.1.0",
+    "name": "luban-video-monorepo",
     "private": true,
-    "type": "module",
     "scripts": {
-        "dev": "vite",
-        "build": "tsc && vite build",
-        "preview": "vite preview",
-        "tauri": "tauri",
-        "tauri:dev": "tauri dev",
-        "tauri:build": "tauri build"
-    },
-    "dependencies": {
-        "@tanstack/react-virtual": "^3.13.22",
-        "@tauri-apps/api": "^2.0.0",
-        "@tauri-apps/plugin-dialog": "^2.0.0",
-        "@tauri-apps/plugin-fs": "^2.0.0",
-        "@tauri-apps/plugin-opener": "^2.0.0",
-        "@uiw/react-md-editor": "^3.4.0",
-        "@videojs/themes": "^1.0.1",
-        "gray-matter": "^4.0.3",
-        "react": "^18.2.0",
-        "react-dom": "^18.2.0",
-        "video.js": "^8.23.4",
-        "zustand": "^4.4.7"
+        "dev": "pangu",
+        "tauri:dev": "pangu vm",
+        "build": "turbo build",
+        "test": "turbo test",
+        "type-check": "turbo type-check"
     },
     "devDependencies": {
-        "@eslint/js": "^10.0.1",
-        "@tauri-apps/cli": "^2.0.0",
-        "@types/react": "^18.2.0",
-        "@types/react-dom": "^18.2.0",
-        "@types/video.js": "^7.3.58",
-        "@typescript-eslint/eslint-plugin": "^8.57.0",
-        "@typescript-eslint/parser": "^8.57.0",
-        "@vitejs/plugin-react": "^4.2.1",
-        "autoprefixer": "^10.4.16",
-        "eslint": "^10.0.3",
-        "eslint-plugin-react": "^7.37.5",
-        "eslint-plugin-react-hooks": "^7.0.1",
-        "eslint-plugin-react-refresh": "^0.5.2",
-        "globals": "^17.4.0",
-        "postcss": "^8.4.32",
-        "tailwindcss": "^3.4.0",
-        "typescript": "^5.3.3",
-        "typescript-eslint": "^8.57.0",
-        "vite": "^5.0.8"
-    }
+        "turbo": "^2.6.3",
+        "@systembug/pangu": "latest"
+    },
+    "packageManager": "pnpm@10.27.0"
 }

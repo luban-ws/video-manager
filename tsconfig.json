@@ -14,8 +14,13 @@
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+    "baseUrl": ".",
+    "paths": {
+      "@luban-ws/shared": ["./packages/shared/src/index.ts"],
+      "@luban-ws/ui": ["./packages/ui/src/index.ts"]
+    }
   },
-  "include": ["src"],
-  "references": [{ "path": "./tsconfig.node.json" }]
+  "include": ["apps/**/*", "packages/**/*"],
+  "exclude": ["node_modules", "**/dist", "**/target"]
 }
